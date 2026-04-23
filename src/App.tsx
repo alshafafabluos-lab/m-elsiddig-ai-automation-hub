@@ -408,11 +408,11 @@ const translations: Record<Language, Translation> = {
 };
 
 const portfolioItems = [
-  { id: 1, url: '/project1.png', title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
-  { id: 2, url: '/project2.jpg', title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
-  { id: 3, url: '/project3.jpg', title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
-  { id: 4, url: '/project4.jpg', title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
-  { id: 5, url: '/project5.png', title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
+  { id: 1, url: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
+  { id: 2, url: 'https://images.unsplash.com/photo-1518186285589-2f7649de83e0?auto=format&fit=crop&q=80&w=800', title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
+  { id: 3, url: 'https://images.unsplash.com/photo-1551288049-bbdac8a28a1e?auto=format&fit=crop&q=80&w=800', title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
+  { id: 4, url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800', title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
+  { id: 5, url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&q=80&w=800', title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
 ];
 
 // --- Components ---
