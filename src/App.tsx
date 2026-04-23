@@ -408,11 +408,11 @@ const translations: Record<Language, Translation> = {
 };
 
 const portfolioItems = [
-  { id: 1, url: '/project1.png', title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
-  { id: 2, url: '/project2.jpg', title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
-  { id: 3, url: '/project3.jpg', title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
-  { id: 4, url: '/project4.jpg', title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
-  { id: 5, url: '/project5.png', title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
+  { id: 1, url: new URL('/project1.png', import.meta.url).href, title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
+  { id: 2, url: new URL('/project2.jpg', import.meta.url).href, title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
+  { id: 3, url: new URL('/project3.jpg', import.meta.url).href, title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
+  { id: 4, url: new URL('/project4.jpg', import.meta.url).href, title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
+  { id: 5, url: new URL('/project5.png', import.meta.url).href, title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
 ];
 
 // --- Components ---
