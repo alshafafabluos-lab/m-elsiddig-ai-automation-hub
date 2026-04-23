@@ -33,6 +33,13 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
+// --- Assets ---
+import project1 from './project1.png';
+import project2 from './project2.jpg';
+import project3 from './project3.jpg';
+import project4 from './project4.jpg';
+import project5 from './project5.png';
+
 // --- Types ---
 type Language = 'ar' | 'en';
 
@@ -408,23 +415,12 @@ const translations: Record<Language, Translation> = {
 };
 
 const portfolioItems = [
-  { id: 1, url: 'project1.png', title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
-  { id: 2, url: 'project2.jpg', title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
-  { id: 3, url: 'project3.jpg', title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
-  { id: 4, url: 'project4.jpg', title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
-  { id: 5, url: 'project5.png', title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
+  { id: 1, url: project1, title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
+  { id: 2, url: project2, title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
+  { id: 3, url: project3, title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
+  { id: 4, url: project4, title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
+  { id: 5, url: project5, title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
 ];
-
-// --- Helper Functions ---
-
-const resolveImageUrl = (url: string) => {
-  if (url.startsWith('http')) return url;
-  // Robust resolution for Vite development and preview environments
-  const base = import.meta.env.BASE_URL || '/';
-  const cleanBase = base.endsWith('/') ? base : `${base}/`;
-  const cleanUrl = url.startsWith('/') ? url.slice(1) : url;
-  return `${cleanBase}${cleanUrl}`;
-};
 
 // --- Components ---
 
@@ -1048,7 +1044,7 @@ export default function App() {
               >
                 <div className="aspect-[4/3] overflow-hidden">
                   <img 
-                    src={resolveImageUrl(item.url)} 
+                    src={item.url} 
                     alt={item.title}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
@@ -1063,7 +1059,7 @@ export default function App() {
                   </div>
                   <h4 className="text-white font-bold text-xl mb-4">{item.title}</h4>
                   <a 
-                    href={resolveImageUrl(item.url)} 
+                    href={item.url} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-brand-400 font-bold hover:text-brand-300 transition-colors"
