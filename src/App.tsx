@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'motion/react';
 import { 
   Cpu, 
@@ -27,8 +27,11 @@ import {
   CheckCircle2,
   Phone,
   Star,
-  BookOpen
+  BookOpen,
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 // --- Types ---
 type Language = 'ar' | 'en';
@@ -38,6 +41,7 @@ interface Translation {
     home: string;
     services: string;
     portfolio: string;
+    vision: string;
     contact: string;
   };
   hero: {
@@ -46,6 +50,30 @@ interface Translation {
     description: string;
     ctaPrimary: string;
     ctaSecondary: string;
+  };
+  vision: {
+    title: string;
+    subtitle: string;
+    philosophyTitle: string;
+    philosophyDesc: string;
+    categories: {
+      id: string;
+      title: string;
+      desc: string;
+      advice: string;
+    }[];
+    consultationCta: string;
+  };
+  blueprint: {
+    title: string;
+    description: string;
+    cta: string;
+    disclaimer: string;
+    pdf: {
+      title: string;
+      author: string;
+      sections: { h: string; p: string; }[];
+    };
   };
   services: {
     title: string;
@@ -86,219 +114,305 @@ interface Translation {
 // --- Content ---
 const translations: Record<Language, Translation> = {
   en: {
-    nav: { home: 'Home', services: 'Services', portfolio: 'Portfolio', contact: 'Contact' },
+    nav: { home: 'Home', services: 'Solutions', portfolio: 'Work', vision: 'AI Hub', contact: 'Talk' },
     hero: {
       title: 'Mustafa ElSiddig',
-      subtitle: 'Intelligent Systems Architect',
-      description: 'Solution Engineer specializing in analyzing operational gaps and designing intelligent systems that combine the power of Google Cloud, RPA automation, and Large Language Models (LLMs).',
-      ctaPrimary: 'Get in Touch',
-      ctaSecondary: 'View Projects'
+      subtitle: 'Solutions Engineer & AI Systems Automation Developer',
+      description: 'I build smart systems that handle your routine work and manual processes, saving you hours of effort every day using AI and Automation tools.',
+      ctaPrimary: 'Start Your Project',
+      ctaSecondary: 'View My Work'
     },
     services: {
-      title: 'Expert Solutions',
+      title: 'What I Can Do For You',
       items: [
         {
-          title: 'Workflow Automation',
-          description: 'Design seamless workflows that require zero human intervention.',
+          title: 'Business Process Automation',
+          description: 'Connecting your favorite apps to work together and handle repetitive tasks automatically.',
           features: [
-            'Sales & Invoicing Automation',
-            'Google Apps Script Integration',
-            'Automated Reporting Systems',
-            'Cloud-based Paperless Migration'
+            'Google Apps Script Automation',
+            'Zapier & Make.com Integration',
+            'Automatic Invoicing & Reports',
+            'Custom Workflow Building'
           ]
         },
         {
-          title: 'AI Digital Agents',
-          description: 'Building AI systems that work as intelligent employees within your organization.',
+          title: 'Smart AI Chatbots',
+          description: 'Building intelligent assistants that talk to your customers and handle basic inquiries 24/7.',
           features: [
-            'Context-aware Smart Bots',
-            'Automated Customer Engagement',
-            'Decision-making AI Systems',
-            'Custom Knowledge Base Integration'
+            'WhatsApp & Messenger Bots',
+            'AI Document Assistants (RAG)',
+            'Auto Lead Qualification',
+            'Customer Support Automation'
           ]
         },
         {
-          title: 'Systems Evolution',
-          description: 'Transform traditional legacy systems into modern intelligent infrastructures.',
+          title: 'Custom Python Solutions',
+          description: 'Writing specialized scripts and tools to solve specific business problems or process data.',
           features: [
-            '70% Human Effort Reduction',
-            'Process Re-engineering',
-            'Data Accuracy Optimization',
-            'Scalable Modern Architectures'
+            'Web Scraping & Data Extraction',
+            'Custom API Integrations',
+            'Task Automation Scripts',
+            'File & Image Processing'
           ]
         },
         {
-          title: 'Data Engineering',
-          description: 'Transforming raw data into strategic insights through advanced scripting.',
+          title: 'Data & Sheets Automation',
+          description: 'Turning messy data into organized systems using Google Sheets and automation scripts.',
           features: [
-            'Big Data Processing Scripts',
-            'Automated Data Classification',
-            'Strategic Insight Generation',
-            'Advanced Data Cleaning'
+            'Google Apps Script',
+            'Automated Dashboarding',
+            'Data Cleaning & Formatting',
+            'Bulk Data Management'
           ]
         },
         {
-          title: 'SEO & Performance Web',
-          description: 'Building professional web interfaces optimized for search engines and performance.',
+          title: 'Professional Web Apps',
+          description: 'Developing fast, modern, and easy-to-use websites and web applications.',
           features: [
-            'High-Performance Web Apps',
-            'SEO-First Architecture',
-            'Professional Brand Display',
-            'Lightning Fast Load Times'
+            'Fast Performance Apps',
+            'Responsive & Clean Design',
+            'SEO Friendly Structure',
+            'User-Focused Experience'
           ]
         }
       ]
     },
     portfolio: {
-      title: 'Project Showcases',
-      viewImage: 'View Full Result'
+      title: 'Projects & Results',
+      viewImage: 'See Project'
+    },
+    vision: {
+      title: 'Future Vision',
+      subtitle: 'AI with a Human Perspective',
+      philosophyTitle: 'Continuous Evolution Over Static Degrees',
+      philosophyDesc: 'In a world changing every second, a degree from 2022 might not serve you in 2030. Technology doesn\'t wait for curriculum changes. I don\'t advocate leaving studies, but I urge you to embrace constant adaptation. AI is not here to replace us, but to empower those who know how to walk with it.',
+      categories: [
+        {
+          id: 'student',
+          title: 'Students & Talents',
+          desc: 'AI is your ultimate mentor. It is about understanding faster, not cheating. Use it to break down complex theories and explore career paths.',
+          advice: 'Think of AI as an "Exoskeleton" for your brain. It amplifies your logic but can never replace your human creativity. Use it to learn 10x faster, but keep the steering wheel in your hands.'
+        },
+        {
+          id: 'employee',
+          title: 'Ambitious Employees',
+          desc: 'Automation protects your position by making you indispensable. Let the machine handle the data, while you handle the strategy.',
+          advice: 'AI wont replace humans, but humans using AI will replace those who dont. Focus on becoming the conductor of the digital orchestra.'
+        },
+        {
+          id: 'business',
+          title: 'Agile Organizations',
+          desc: 'Build smart workflows that grow without overhead. AI is the tool that lets small teams achieve giant results.',
+          advice: 'Scale your vision, not your friction. Use AI to build a system that works while you sleep, serving your customers with human-like precision.'
+        }
+      ],
+      consultationCta: 'Let\'s Discuss Your AI Strategy (Free Brief)'
+    },
+    blueprint: {
+      title: 'Strategic Blueprint',
+      description: 'Download my high-level engineering guide for scaling your business with AI and smart workflows.',
+      cta: 'Download Blueprint (PDF)',
+      disclaimer: 'Engineered for founders and technical leaders.',
+      pdf: {
+        title: 'Deep AI & Automation Strategic Blueprint',
+        author: 'Mustafa ElSiddig - Solutions Engineer',
+        sections: [
+          { h: 'The Architecture', p: 'Designing scalable systems by separating data, logic, and interface layers for long-term growth.' },
+          { h: 'Advanced Roadmap', p: 'Auditing workflows to identify bottlenecks and orchestrating systems using custom scripts and APIs.' },
+          { h: 'AI Agents (RAG)', p: 'Moving beyond simple chat-bots to building context-aware agents that handle complex business operations.' },
+          { h: 'Custom Coding vs Generic Tools', p: 'Leveraging Python and Google Apps Script for efficiency where common tools reach their limits.' }
+        ]
+      }
     },
     assistant: {
-      label: 'Business Consultant',
-      welcome: 'Hello! I am here to show you how intelligent systems can scale your business. What are you looking to achieve?',
+      label: 'Your Project Partner',
+      welcome: 'Hello! I can help you find out which tasks you can automate today. What part of your work takes most of your time?',
       categories: {
-        faq: 'Values',
-        terms: 'Success Basis',
-        process: 'How we start'
+        faq: 'Questions',
+        terms: 'My Commitments',
+        process: 'How We Work'
       },
       faqs: [
-        { q: 'How will this save me money?', a: 'By handling repetitive tasks (like invoicing, follow-ups, and data entry) automatically. This lets you grow without hiring more staff.' },
-        { q: 'Is it complicated for my team?', a: 'Not at all. We design everything to work in the background. If your team can use WhatsApp or Email, they can use our systems.' },
-        { q: 'Will it stop working or break?', a: 'We build reliable systems on Google’s infrastructure. Plus, we monitor the performance for you to ensure everything stays smooth.' }
+        { q: 'How does automation help my business?', a: 'It saves you hours of manual work every week, reduces human errors, and lets you focus on growing your business instead of doing routine tasks.' },
+        { q: 'Is it hard to set up?', a: 'Not for you! I handle all the technical setup and integration, making sure everything works smoothly with your current tools.' },
+        { q: 'How long does a project take?', a: 'Most automation tasks and bots can be up and running within 1 to 2 weeks.' }
       ],
       terms: [
-        { title: 'Your Privacy', content: 'Your business data and client information are strictly yours. We never share or use your data for anything else.' },
-        { title: 'Quality Guarantee', content: 'We don’t just deliver code; we deliver results. We stay with you until the system works exactly as we planned.' },
-        { title: 'Growth Mindset', content: 'As your business grows, our systems grow with you. Everything we build is flexible for the future.' }
+        { title: 'Data Privacy', content: 'Your business data is yours. I follow strict security practices to keep your information safe.' },
+        { title: 'Reliable Support', content: 'I don\'t just build and leave; I make sure the system works perfectly and I am here if you need help later.' },
+        { title: 'Simple & Scalable', content: 'I build systems that are easy to use and can grow as your business grows.' }
       ],
       process: [
-        { step: 'Discovery', desc: 'We find the "silent" tasks that are stealing your time.' },
-        { step: 'Build', desc: 'We create the smart helper that will handle those tasks for you.' },
-        { step: 'Growth', desc: 'You focus on expansion while the system handles the details.' }
+        { step: 'Discussion', desc: 'We talk about your work and find the best things to automate.' },
+        { step: 'Building', desc: 'I develop the bot or automation specifically for your needs.' },
+        { step: 'Launch', desc: 'We go live, and you start saving time immediately.' }
       ]
     },
     contact: {
-      title: 'Start a Project',
+      title: 'Let\'s Work Together',
       form: {
-        name: 'Full Name',
-        email: 'Email Address',
-        message: 'Project Details',
+        name: 'Your Name',
+        email: 'Your Email',
+        message: 'How can I help you?',
         send: 'Send Message'
       },
-      socials: 'Connect with me'
+      socials: 'Social Links'
     }
   },
   ar: {
-    nav: { home: 'الرئيسية', services: 'الخدمات', portfolio: 'الأعمال', contact: 'تواصل معي' },
+    nav: { home: 'الرئيسية', services: 'الخدمات', portfolio: 'أعمالي', vision: 'دليلك للذكاء', contact: 'تواصل معي' },
     hero: {
-      title: 'مصطفى صديق',
-      subtitle: 'مهندس أنظمة ذكية',
-      description: 'مهندس حلول متخصص في تحليل الفجوات التشغيلية وتصميم أنظمة ذكية تجمع بين قوة الـ Google Cloud وأتمتة العمليات (RPA) وذكاء النماذج اللغوية (LLMs).',
-      ctaPrimary: 'ابدأ مشروعك',
-      ctaSecondary: 'عرض المشاريع'
+      title: 'مصطفى الصديق',
+      subtitle: 'مهندس حلول ومطور أتمتة وأنظمة ذكاء اصطناعي',
+      description: 'أساعدك على توفير وقتك وجهدك من خلال أتمتة المهام المتكررة وبناء أنظمة ذكية تنجز عملك الروتيني بدقة وسرعة.',
+      ctaPrimary: 'ابدأ مشروعك الآن',
+      ctaSecondary: 'مشاهدة أعمالي'
     },
     services: {
-      title: 'حلول احترافية',
+      title: 'كيف يمكنني مساعدتك؟',
       items: [
         {
-          title: 'هندسة الأتمتة المكتبية',
-          description: 'تصميم مسارات عمل لا تتطلب تدخلًا بشريًا.',
+          title: 'أتمتة مهام العمل',
+          description: 'ربط تطبيقاتك المفضلة ببعضها لتنفيذ المهام الروتينية بدلاً منك بشكل آلي تماماً.',
           features: [
-            'أتمتة المبيعات والفواتير',
-            'ربط Google Apps Script',
-            'نظم التقارير التلقائية',
-            'التحول السحابي الكامل'
+            'برمجة Google Apps Script',
+            'ربط التطبيقات (Zapier/Make)',
+            'أتمتة التقارير والفواتير',
+            'بناء مسارات عمل مخصصة'
           ]
         },
         {
-          title: 'تطوير الموظف الرقمي',
-          description: 'بناء أنظمة ذكاء اصطناعي تعمل كموظف ذكي داخل مؤسستك.',
+          title: 'بوتات رد ذكية (AI)',
+          description: 'بناء مساعدين ذكيين للرد على عملائك في الواتساب أو موقعك على مدار الساعة.',
           features: [
-            'بوتات ذكية تفهم السياق',
-            'الرد الآلي على العملاء',
-            'اتخاذ القرارات بالذكاء الاصطناعي',
-            'ربط قواعد البيانات الخاصة'
+            'بوتات واتساب وماسنجر',
+            'أنظمة رد قائمة على بياناتك',
+            'تصنيف العملاء تلقائياً',
+            'توفير وقت خدمة العملاء'
           ]
         },
         {
-          title: 'التحول الرقمي وتطوير الأنظمة',
-          description: 'تحديث الأنظمة التقليدية المتهالكة إلى أنظمة ذكية حديثة.',
+          title: 'حلول برمجية بلغة بايثون',
+          description: 'كتابة سكربتات مخصصة لحل أي مشكلة تقنية أو استخلاف بيانات من المواقع.',
           features: [
-            'تقليل الجهد البشري بنسبة 70%',
-            'إعادة هندسة العمليات',
-            'زيادة دقة البيانات',
-            'هياكل حديثة قابلة للتوسع'
+            'استخراج البيانات من المواقع',
+            'ربط برمجيات الـ API',
+            'سكربتات أتمتة المهام',
+            'معالجة الملفات والصور'
           ]
         },
         {
-          title: 'هندسة البيانات',
-          description: 'تحويل البيانات الخام إلى رؤى استراتيجية عبر سكربتات متقدمة.',
+          title: 'أتمتة جداول البيانات',
+          description: 'تحويل جداول البيانات الفوضوية إلى نظام منظم وذكي يوفر عليك ساعات من التنسيق.',
           features: [
-            'سكربتات معالجة البيانات الضخمة',
-            'تصنيف البيانات آلياً',
-            'خلق رؤى استراتيجية للقرار',
-            'تنظيف ومعالجة البيانات'
+            'Google Apps Script',
+            'تقارير ولوحات تحكم آلية',
+            'تنظيف البيانات وتنسيقها',
+            'إدارة البيانات الضخمة'
           ]
         },
         {
-          title: 'الحلول الويب المهيأة',
-          description: 'بناء واجهات عرض احترافية تضمن ظهورك في محركات البحث بآداء عالي.',
+          title: 'تطوير مواقع وتطبيقات',
+          description: 'بناء مواقع سريعة وحديثة تساعدك في عرض خدماتك وتطوير وجودك الرقمي.',
           features: [
-            'تطبيقات ويب فائقة السرعة',
-            'بنية صديقة لمحركات البحث',
-            'عرض احترافي للهوية',
-            'سرعة تحميل استثنائية'
+            'تطبيقات ويب سريعة الأداء',
+            'تصميم عصري وسهل الاستخدام',
+            'تحسين الظهور في جوجل',
+            'تجربة مستخدم مريحة'
           ]
         }
       ]
     },
     portfolio: {
-      title: 'كتالوج المشاريع',
-      viewImage: 'مشاهدة النتيجة الكاملة'
+      title: 'أعمالي وتجارب العملاء',
+      viewImage: 'شاهد المشروع'
+    },
+    vision: {
+      title: 'رؤية المستقبل',
+      subtitle: 'الذكاء الاصطناعي بعين إنسانية',
+      philosophyTitle: 'المواكبة المستمرة أهم من الشهادة الجامعية',
+      philosophyDesc: 'في عالم يتغير كل ثانية، الشهادة التي أخذتها في 2022 قد لا تخدمك في 2030. التكنولوجيا لا تنتظر أحداً. أنا لا أدعو لترك الدراسة، بل أدعوك لمواكبة التطور كل يوم. الذكاء الاصطناعي خُلق ليكون شريكاً لنا، ليعطينا "قوى خارقة" ننجز بها ما كان مستحيلاً بالأمس.',
+      categories: [
+        {
+          id: 'student',
+          title: 'للطلاب والمواهب',
+          desc: 'الذكاء الاصطناعي هو معلمك الشخصي الأفضل. الهدف هو الفهم العميق والتحليل وليس مجرد "القص واللصق". تعلم كيف تسبق زمنك.',
+          advice: 'اعتبر الذكاء الاصطناعي كـ "هيكل خارجي" لعقلك المبدع. هو يضاعف قوتك لكنه لا يحل محل منطقك البشري. استخدمه لتفهم 10 أضعاف أسرع، لكن ابقِ أنت القائد والمفكر.'
+        },
+        {
+          id: 'employee',
+          title: 'للموظف الطموح',
+          desc: 'الأتمتة تحمي منصبك بجعلك الموظف الذي لا يمكن استبداله. دع الآلة تعالج البيانات، وركز أنت على اتخاذ القرارات الاستراتيجية.',
+          advice: 'الذكاء الاصطناعي لن يحل محل البشر، لكن البشر الذين يستخدمونه سيحلون محل أولئك الذين يرفضونه. كن أنت المايسترو لهذا النظام الذكي.'
+        },
+        {
+          id: 'business',
+          title: 'للمؤسسات المرنة',
+          desc: 'ابنِ مسارات عمل ذكية تنمو مع نمو طموحك دون زيادة التعقيد الإداري. الذكاء هو سر التوسع الرشيق.',
+          advice: 'ضاعف رؤيتك، وليس عدد الموظفين بشكل عشوائي. استخدم الذكاء الاصطناعي لبناء نظام يخدم عملاءك بدقة بشرية وسرعة فائقة على مدار الساعة.'
+        }
+      ],
+      consultationCta: 'لنناقش استراتيجية الذكاء الاصطناعي الخاصة بك (استشارة مجانية)'
+    },
+    blueprint: {
+      title: 'الدليل الاستراتيجي',
+      description: 'قم بتحميل دليلي الهندسي لبناء بنية تحتية ذكية لمؤسستك وتحجيم عملياتك آلياً.',
+      cta: 'تحميل الدليل (PDF)',
+      disclaimer: 'مصمم خصيصاً للمؤسسين والقادة التقنيين.',
+      pdf: {
+        title: 'الدليل الاستراتيجي للأتمتة والذكاء الاصطناعي',
+        author: 'مصطفى الصديق - مهندس حلول',
+        sections: [
+          { h: 'هندسة الأنظمة', p: 'تصميم أنظمة قابلة للتوسع من خلال فصل طبقات البيانات والمنطق لضمان النمو المستدام.' },
+          { h: 'خارطة الطريق المتقدمة', p: 'تحليل مسارات العمل لتحديد نقاط الاختناق وربط الأنظمة باستخدام سكربتات مخصصة.' },
+          { h: 'وكلاء الذكاء (RAG)', p: 'الانتقال من مجرد المحادثة إلى بناء وكلاء أذكياء لديهم سياق كامل عن بياناتك الخاصة.' },
+          { h: 'البرمجة مقابل الأدوات الجاهزة', p: 'استغلال بايثون وغوغل سكربت لتحقيق الكفاءة في المناطق التي تتوقف عندها الأدوات العادية.' }
+        ]
+      }
     },
     assistant: {
-      label: 'مستشار الأعمال',
-      welcome: 'مرحباً! أنا هنا لأوضح لك كيف يمكن للأنظمة الذكية أن تضاعف حجم عملك. ما هو الهدف الذي تسعى لتحقيقه؟',
+      label: 'شريكك في التطوير',
+      welcome: 'أهلاً بك! يمكنني مساعدتك في اكتشاف المهام التي يمكنك أتمتتها اليوم. ما هو أكثر شيء يستهلك وقتك في العمل؟',
       categories: {
-        faq: 'الفوائد',
-        terms: 'أساس النجاح',
-        process: 'كيف نبدأ؟'
+        faq: 'أسئلة شائعة',
+        terms: 'التزاماتي تجاهك',
+        process: 'كيف نبدأ العمل؟'
       },
       faqs: [
-        { q: 'كيف سيوفر لي هذا المال؟', a: 'من خلال تولي المهام المتكررة (مثل الفواتير، المتابعات، وإدخال البيانات) تلقائياً. هذا يتيح لك التوسع دون الحاجة لتوظيف عمالة إضافية.' },
-        { q: 'هل النظام معقد على موظفي؟', a: 'أبداً. نصمم كل شيء ليعمل في الخلفية. إذا كان فريقك يجيد استخدام الواتساب أو الإيميل، فهم جاهزون لاستخدام أنظمتنا.' },
-        { q: 'هل سيتوقف النظام فجأة؟', a: 'نحن نبني أنظمة موثوقة على بنية جوجل الأساسية، كما نقوم بمراقبة الأداء نيابة عنك لضمان بقاء كل شيء يعمل بسلاسة.' }
+        { q: 'كيف تفيد الأتمتة مشروعي؟', a: 'توفر عليك ساعات من العمل اليدوي أسبوعياً، وتقلل الأخطاء البشرية، وتخليك تركز في نمو البزنس بدل الشغل الروتيني.' },
+        { q: 'هل الموضوع صعب في التنفيذ؟', a: 'أبداً! أنا أتكفل بكل التفاصيل التقنية والربط، وأتأكد إن كل شي شغال بسلاسة مع أدواتك الحالية.' },
+        { q: 'كم ياخذ المشروع من الوقت؟', a: 'معظم مهام الأتمتة والبوتات بتكون جاهزة وشغالة في فترة بين أسبوع إلى أسبوعين.' }
       ],
       terms: [
-        { title: 'خصوصية بياناتك', content: 'بيانات عملك ومعلومات عملائك ملك لك وحدك. نحن نلتزم بعدم مشاركتها أو استخدامها لأي غرض آخر.' },
-        { title: 'ضمان الجودة', content: 'نحن لا نسلم مجرد أكواد، بل نسلم نتائج. نبقى معك حتى يعمل النظام تماماً كما خططنا له في البداية.' },
-        { title: 'المرونة في التوسع', content: 'مع نمو عملك، ستنمو أنظمتنا معك. كل ما نبنيه مصمم ليكون مرناً وقابلاً للتطوير في المستقبل.' }
+        { title: 'خصوصية بياناتك', content: 'بيانات عملك ملك لك وحدك، وألتزم بخصوصيتها وأمانها بشكل كامل.' },
+        { title: 'دعم ومتابعة', content: 'شغلي ما بينتهي بمجرد التسليم، بكون معاك عشان أتأكد إن النظام شغال بامتياز.' },
+        { title: 'مرونة وبساطة', content: 'أصمم أنظمة سهلة في الاستخدام وقابلة للتطوير مع نمو مشروعك.' }
       ],
       process: [
-        { step: 'الاستكشاف', desc: 'نحدد المهام "الصامتة" التي تسرق وقتك وجهدك حالياً.' },
-        { step: 'البناء', desc: 'نصمم المساعد الذكي الذي سيتولى تلك المهام بدلاً منك.' },
-        { step: 'الانطلاق', desc: 'أنت تركز على التوسع، والنظام يتولى التفاصيل الروتينية.' }
+        { step: 'نقاش', desc: 'نتكلم عن طبيعة شغلك ونحدد الأشغال الممكن أتمتتها.' },
+        { step: 'بناء', desc: 'أقوم بتطوير البوت أو نظام الأتمتة المناسب لاحتياجك.' },
+        { step: 'انطلاق', desc: 'النظام يبدأ يشتغل وأنت تبدأ توفر وقتك فوراً.' }
       ]
     },
     contact: {
-      title: 'ابدأ مشروعك الآن',
+      title: 'خلينا نشتغل مع بعض',
       form: {
-        name: 'الاسم الكامل',
+        name: 'الاسم',
         email: 'البريد الإلكتروني',
-        message: 'تفاصيل المشروع',
+        message: 'كيف أقدر أساعدك؟',
         send: 'إرسال الرسالة'
       },
-      socials: 'تواصل اجتماعي'
+      socials: 'روابط التواصل'
     }
   }
 };
 
 const portfolioItems = [
-  { id: 1, url: '/project1.png', title: 'BrandAI: Data & Analytics Ecosystem', tag: 'Full Integration' },
-  { id: 2, url: '/project2.jpg', title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent' },
-  { id: 3, url: '/project3.jpg', title: 'Operational Bleed Analysis Tool', tag: 'Automation' },
-  { id: 4, url: '/project4.jpg', title: 'Flex-AI PRO Systems', tag: 'Systems Evolution' },
-  { id: 5, url: '/project5.png', title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering' }
+  { id: 1, url: '/project1.png', title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
+  { id: 2, url: '/project2.jpg', title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
+  { id: 3, url: '/project3.jpg', title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
+  { id: 4, url: '/project4.jpg', title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
+  { id: 5, url: '/project5.png', title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
 ];
 
 // --- Components ---
@@ -310,6 +424,7 @@ export default function App() {
 
   const [isBotOpen, setIsBotOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'faq' | 'terms' | 'process'>('faq');
+  const [userRating, setUserRating] = useState<number | null>(null);
 
   const t = translations[lang];
 
@@ -329,6 +444,309 @@ export default function App() {
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
+
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [customService, setCustomService] = useState('');
+  const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+
+  const servicesList = lang === 'ar' 
+    ? ['أتمتة العمليات (Automation)', 'بوتات الذكاء الاصطناعي (AI Bots)', 'برمجة بايثون (Python)', 'تحليل البيانات (Analytics)', 'هندسة الأنظمة (Systems)']
+    : ['Process Automation', 'AI Chatbots', 'Python Scripting', 'Data Analytics', 'Systems Engineering'];
+
+  const toggleService = (service: string) => {
+    setSelectedServices(prev => 
+      prev.includes(service) ? prev.filter(s => s !== service) : [...prev, service]
+    );
+  };
+
+  const handleFormSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const services = selectedServices.join(', ') + (customService ? `, Other: ${customService}` : '');
+    const body = `Name: ${formData.name}\nEmail: ${formData.email}\nServices Requested: ${services}\n\nMessage:\n${formData.message}`;
+    const mailtoUrl = `mailto:MustafaSiddig989@gmail.com?subject=New Project Request from Portfolio&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoUrl;
+  };
+
+  const generateBlueprintPDF = () => {
+    const doc = new jsPDF();
+    const primaryColor = [59, 130, 246]; // Brand Blue
+    const bgColor = [15, 23, 42]; // Slate 900
+    const textColor = [255, 255, 255];
+    const subTextColor = [148, 163, 184];
+    
+    let currentPage = 1;
+    let y = 20;
+
+    const setupPage = () => {
+      doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+      doc.rect(0, 0, 210, 297, 'F');
+      
+      // Footer on every page
+      doc.setDrawColor(subTextColor[0], subTextColor[1], subTextColor[2]);
+      doc.setLineWidth(0.1);
+      doc.line(15, 280, 195, 280);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.setFontSize(8);
+      doc.text(`MUSTAFA ELSIDDIG | STRATEGIC AI BLUEPRINT 2025 | PAGE ${currentPage}`, 15, 288);
+      
+      doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    };
+
+    const checkNewPage = (neededHeight: number) => {
+      if (y + neededHeight > 270) {
+        doc.addPage();
+        currentPage++;
+        y = 30;
+        setupPage();
+      }
+    };
+
+    // --- PAGE 1: TITLE ---
+    setupPage();
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(32);
+    doc.text('THE STRATEGIC', 15, 80);
+    doc.text('AI BLUEPRINT', 15, 95);
+    
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(18);
+    doc.text('Architecting Intelligent Business Systems', 15, 110);
+    
+    doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.setLineWidth(1);
+    doc.line(15, 120, 100, 120);
+    
+    doc.setFontSize(14);
+    doc.text('A Comprehensive Guide for Founders and Technical Leaders', 15, 135);
+    doc.text('on Scaling Efficiency through Automation and Deep AI.', 15, 145);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(subTextColor[0], subTextColor[1], subTextColor[2]);
+    doc.text('PREPARED BY:', 15, 230);
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(14);
+    doc.text('Mustafa ElSiddig', 15, 240);
+    doc.setFontSize(11);
+    doc.text('Solutions Engineer & AI Automation Expert', 15, 246);
+
+    // --- PAGE 2: PHILOSOPHY ---
+    doc.addPage();
+    currentPage++;
+    y = 30;
+    setupPage();
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('01. THE PHILOSOPHY', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const philosophyText = [
+      "In the rapidly evolving landscape of 2025, technology is no longer a support function—it is the core of any sustainable business. This blueprint is not about tools; it is about architecture.",
+      "",
+      "Generic automation leads to fragile systems. Strategic engineering leads to exponential growth. My approach focuses on building 'Digital Assets' that appreciate over time, reducing the need for massive human overhead while increasing output precision.",
+      "",
+      "The goal is simple: To transition your organization from a series of manual, disconnected tasks into a single, cohesive, and intelligent 'Living Organism'."
+    ];
+    philosophyText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 3: WORKFLOW ENGINEERING ---
+    checkNewPage(100);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('02. WORKFLOW ENGINEERING', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const workflowText = [
+      "Before applying AI, we must decode the workflow. Most inefficiencies are hidden behind 'The way we've always done it'.",
+      "",
+      "Step 1: Gap Analysis. Identifying where data stalls and where manual intervention is excessive.",
+      "Step 2: Logic Mapping. Every business process is a series of 'If-This-Then-That' statements. We map these into a digital logic layer.",
+      "Step 3: Redundancy Elimination. Removing steps that don't add value before automating the ones that do.",
+      "",
+      "Transformation is about subtraction, then multiplication."
+    ];
+    workflowText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 4: DATA INFRASTRUCTURE ---
+    checkNewPage(100);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('03. DATA ARCHITECTURE', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const dataText = [
+      "AI is only as good as the data it feeds on. A modern business needs a 'Single Source of Truth'.",
+      "",
+      "- Centralized Repositories: Moving away from isolated sheets into unified databases.",
+      "- Data Orchestration: Using tools like Google Apps Script to move data seamlessly between platforms.",
+      "- Real-time Analytics: Automating the reporting layer so decisions are made on data, not gut feelings.",
+      "",
+      "A well-structured database is a moat that protects your business from competitors."
+    ];
+    dataText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 5: DEEP AUTOMATION ---
+    checkNewPage(100);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('04. DEEP AUTOMATION', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const automationText = [
+      "Beyond Zapier: Deep automation involves using APIs and Webhooks to create custom connections.",
+      "",
+      "- Logic Controllers: Using Python or Node.js to handle complex multi-conditional paths.",
+      "- Cross-Platform Sync: Ensuring that a change in your CRM reflects instantly in your accounting and project management tools.",
+      "- Failure Recovery: Building 'Self-Healing' systems that retry operations if an API call fails.",
+      "",
+      "True automation is invisible."
+    ];
+    automationText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 6: AI AUGMENTATION ---
+    checkNewPage(100);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('05. AI AUGMENTATION', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const aiText = [
+      "Integrating LLMs (Large Language Models) isn't just about chat. It's about 'Reasoning'.",
+      "",
+      "- Content Intelligence: Automating the drafting of proposals, contracts, and marketing copy.",
+      "- Cognitive Routing: Using AI to categorize incoming tickets/emails and assign them to the right human or bot.",
+      "- Sentiment Analysis: Monitoring customer feedback in real-time to alert management of potential issues.",
+      "",
+      "AI is the engine, but Prompt Engineering is the steering wheel."
+    ];
+    aiText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 7: RAG & KNOWLEDGE BASES ---
+    checkNewPage(100);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('06. CUSTOM KNOWLEDGE (RAG)', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const ragText = [
+      "Retrieval Augmented Generation (RAG) is the key to making AI safe and useful for your company.",
+      "",
+      "- Personal Context: Giving AI access to your specific SOPs, history, and training manuals.",
+      "- Zero Hallucination: Forcing the AI to only answer based on provided facts.",
+      "- Instant Training: New employees can 'Talk' to the company history to learn processes instantly.",
+      "",
+      "Turning your dead archives into a living, breathing knowledge base."
+    ];
+    ragText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 8: AUTONOMOUS AGENTS ---
+    checkNewPage(100);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('07. AUTONOMOUS AGENTS', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const agentText = [
+      "The next frontier: Digital workers that don't just 'suggest', but 'act'.",
+      "",
+      "- Sales Agents: Cold outreach and qualification handling automatically.",
+      "- HR Agents: Initial screening and scheduling of candidates.",
+      "- Support Agents: Resolving 80% of issues without human intervention.",
+      "",
+      "Scaling your power without scaling your payroll."
+    ];
+    agentText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 9: SAFETY & GOVERNANCE ---
+    checkNewPage(100);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('08. GOVERNANCE & SECURITY', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    const safetyText = [
+      "With great power comes great responsibility. Intelligent systems must be secure.",
+      "",
+      "- Data Sovereignty: Ensuring AI calls don't leak sensitive trade secrets.",
+      "- Audit Trails: Knowing exactly why an AI made a specific decision.",
+      "- Human-in-the-loop: Critical steps always require a human click.",
+      "",
+      "Security is not a feature; it is the foundation."
+    ];
+    safetyText.forEach(text => {
+      const split = doc.splitTextToSize(text, 180);
+      doc.text(split, 15, y);
+      y += split.length * 7;
+    });
+
+    // --- PAGE 10: CONCLUSION & ACTION ---
+    checkNewPage(150);
+    y += 20;
+    doc.setFontSize(22);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('09. THE NEXT STEP', 15, y);
+    y += 20;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    doc.text("Reading this blueprint is the first step. Implementing it is the marathon.", 15, y);
+    y += 10;
+    doc.text("Automation and AI are not about replacing people, but about freeing them from the shackles of routine. If you take anything from this document, let it be this: The cost of inaction is higher than the cost of implementation.", 15, y + 5);
+    
+    y += 40;
+    doc.setFontSize(20);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('READY TO ARCHITECT YOUR FUTURE?', 15, y);
+    y += 15;
+    doc.setFontSize(14);
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.text('Email: MustafaSiddig989@gmail.com', 15, y);
+    doc.text('WhatsApp: +249 124 819 460', 15, y + 8);
+    
+    doc.save('Mustafa_Strategic_AI_Blueprint_2025.pdf');
+  };
 
   const handleRating = (stars: number) => {
     setUserRating(stars);
@@ -391,7 +809,7 @@ export default function App() {
             {Object.entries(t.nav).map(([key, value]) => (
               <button 
                 key={key} 
-                onClick={() => scrollTo(key === 'home' ? 'home' : key)}
+                onClick={() => scrollTo(key)}
                 className="text-sm font-medium text-slate-300 hover:text-brand-400 transition-colors uppercase tracking-wider"
               >
                 {value}
@@ -430,7 +848,7 @@ export default function App() {
             {Object.entries(t.nav).map(([key, value]) => (
               <button 
                 key={key} 
-                onClick={() => scrollTo(key === 'home' ? 'home' : key)}
+                onClick={() => scrollTo(key)}
                 className="text-2xl font-bold text-slate-100 hover:text-brand-400"
               >
                 {value}
@@ -454,8 +872,19 @@ export default function App() {
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <div className="inline-block px-4 py-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 text-brand-400 text-sm font-bold mb-6 tracking-wide uppercase">
-              {t.hero.subtitle}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+              <div className="inline-block px-4 py-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 text-brand-400 text-sm font-bold tracking-wide uppercase">
+                {t.hero.subtitle}
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full w-fit">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                  {lang === 'ar' ? 'متاح للمشاريع الجديدة' : 'Available for hire'}
+                </span>
+              </div>
             </div>
             <h1 className="text-5xl md:text-7xl font-extrabold mb-6 leading-tight">
               {t.hero.title}
@@ -508,6 +937,39 @@ export default function App() {
             </div>
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] border border-slate-800/30 rounded-full animate-spin-slow pointer-events-none" />
           </motion.div>
+        </div>
+      </section>
+
+      {/* Impact Numbers Section */}
+      <section className="relative z-10 -mt-12 mb-20">
+        <div className="container mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { label: lang === 'ar' ? 'تحسين كفاءة العمليات' : 'Process Efficiency Boost', value: '90%+', sub: lang === 'ar' ? 'تقليل المهام اليدوية' : 'Manual task reduction' },
+              { label: lang === 'ar' ? 'تغطية ذكية شاملة' : 'AI Operational Coverage', value: '24/7', sub: lang === 'ar' ? 'أنظمة تعمل بلا انقطاع' : 'Uninterrupted systems' },
+              { label: lang === 'ar' ? 'دقة هندسة البيانات' : 'Data Engineering Precision', value: '100%', sub: lang === 'ar' ? 'حلول خالية من الأخطاء' : 'Error-free implementation' }
+            ].map((stat, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="glass p-8 rounded-3xl border-slate-800 flex flex-col items-center text-center group hover:border-brand-500/50 transition-colors"
+                id={`stat-${i}`}
+              >
+                <div className="text-4xl md:text-5xl font-black text-brand-500 mb-2 group-hover:scale-110 transition-transform font-mono">
+                  {stat.value}
+                </div>
+                <div className="text-white font-bold text-sm uppercase tracking-widest mb-1">
+                  {stat.label}
+                </div>
+                <div className="text-slate-500 text-xs">
+                  {stat.sub}
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -581,7 +1043,14 @@ export default function App() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-8">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-8">
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {item.tech?.map(t => (
+                      <span key={t} className="text-[10px] px-2 py-1 bg-brand-500/20 text-brand-300 border border-brand-500/30 rounded-md font-mono">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                   <h4 className="text-white font-bold text-xl mb-4">{item.title}</h4>
                   <a 
                     href={item.url} 
@@ -606,12 +1075,12 @@ export default function App() {
              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/10 blur-[100px] pointer-events-none" />
              <div className="grid md:grid-cols-3 gap-12 items-center">
                 <div className="md:col-span-2">
-                  <h3 className="text-3xl font-bold mb-6 text-white uppercase">{lang === 'ar' ? 'مهندس حلول بخلفية استشارية' : 'Solution Engineer with Consultancy Background'}</h3>
-                  <p className="text-slate-400 text-lg mb-8 leading-relaxed">
-                    {lang === 'ar' 
-                      ? 'ما يميزني هو القدرة على فهم "سياق العمل" قبل كتابة سطر كود واحد. أقوم بتحليل المشكلات التشغيلية وابتكار حلول برمجية مخصصة تجعل الأنظمة تعمل من أجلك، وليس العكس.' 
-                      : 'What sets me apart is the ability to understand "business context" before writing a single line of code. I analyze operational issues and innovate custom software solutions that make systems work for you, not the other way around.'}
-                  </p>
+              <h3 className="text-3xl font-bold mb-6 text-white uppercase">{lang === 'ar' ? 'أقدم حلولاً ذكية تخدم أهدافك' : 'Smart Solutions Tailored to Your Goals'}</h3>
+              <p className="text-slate-400 text-lg mb-8 leading-relaxed">
+                {lang === 'ar' 
+                  ? 'خبرتي في البرمجة والأتمتة تساعدك على تنظيم عملك وتوفير وقتك. لا داعي للقلق بشأن التعقيدات التقنية، أنا هنا لأحول المهام الصعبة والمملة إلى عمليات بسيطة وذكية تخدم مشروعك وتزيد من إنتاجيتك.' 
+                  : 'My experience in programming and automation helps you organize your work and save time. Forget about technical complexities—I am here to turn difficult and tedious tasks into simple, smart processes that serve your business and increase productivity.'}
+              </p>
                   <a 
                     href="https://drive.google.com/file/d/16nzwA6CTMUMOlrh0vJMcpuhezuUVqBN9/view?usp=drivesdk" 
                     target="_blank"
@@ -633,6 +1102,125 @@ export default function App() {
                 </div>
              </div>
           </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section id="vision" className="py-24 relative overflow-hidden bg-slate-950/50">
+        <div className="container mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-16 items-center mb-20">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-brand-500 font-bold uppercase tracking-[0.2em] mb-4 text-sm">{t.vision.subtitle}</h2>
+              <h3 className="text-4xl md:text-5xl font-black mb-8 leading-tight">{t.vision.philosophyTitle}</h3>
+              <p className="text-slate-400 text-lg leading-relaxed mb-8">
+                {t.vision.philosophyDesc}
+              </p>
+              <div className="p-6 bg-brand-500/5 rounded-3xl border border-brand-500/10 mb-8">
+                <p className="text-brand-200 text-sm italic">
+                  {lang === 'ar' 
+                    ? '"الذكاء الاصطناعي ليس بديلاً للإنسان، بل هو محرك خارق يحتاج لقائد بشري يمتلك الرؤية والإبداع."' 
+                    : '"AI is not a replacement for humans; it is a super-engine that needs a human leader with vision and creativity."'}
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  const msg = lang === 'ar' 
+                    ? 'بشمهندس مصطفى، أود استشارتك مجاناً حول إدخال الذكاء الاصطناعي في عملي/دراستي.'
+                    : 'Mustafa, I would like a free AI strategy brief for my work/studies.';
+                  window.open(`https://wa.me/249124819460?text=${encodeURIComponent(msg)}`);
+                }}
+                className="group flex items-center gap-4 text-white font-bold hover:text-brand-400 transition-colors"
+              >
+                <span className="underline underline-offset-8">{t.vision.consultationCta}</span>
+                <ArrowRight size={20} className={`transform group-hover:translate-x-2 transition-transform ${lang === 'ar' ? 'rotate-180 group-hover:-translate-x-2' : ''}`} />
+              </button>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="relative"
+            >
+               <div className="glass p-1 rounded-3xl overflow-hidden aspect-video relative group">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-brand-500/20 to-transparent z-10" />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                    <BookOpen size={80} className="text-brand-500/30 group-hover:scale-110 transition-transform duration-500" />
+                  </div>
+                  <div className="w-full h-full bg-slate-900 flex items-center justify-center p-12">
+                    <p className="text-slate-500 font-mono text-xs text-center opacity-50">
+                      // AI_PHILOSOPHY_MANIFESTO<br/>
+                      const education = degree.year === 2022;<br/>
+                      const reality = current.year === 2030;<br/>
+                      if (education !== reality) {'{'}<br/>
+                        &nbsp;&nbsp;await system.adapt();<br/>
+                      {'}'}
+                    </p>
+                  </div>
+               </div>
+               <div className="absolute -top-6 -right-6 w-24 h-24 bg-brand-500/10 blur-3xl rounded-full" />
+               <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-cyan-500/10 blur-3xl rounded-full" />
+            </motion.div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {t.vision.categories.map((cat, idx) => (
+              <motion.div
+                key={cat.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
+                className="glass p-8 rounded-3xl border-slate-800 hover:border-brand-500/30 transition-all flex flex-col"
+              >
+                <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-brand-400 mb-6">
+                  {cat.id === 'student' && <Star size={24} />}
+                  {cat.id === 'employee' && <Zap size={24} />}
+                  {cat.id === 'business' && <Bot size={24} />}
+                </div>
+                <h4 className="text-xl font-bold mb-4 text-white uppercase">{cat.title}</h4>
+                <p className="text-slate-400 text-sm mb-6 flex-grow leading-relaxed">{cat.desc}</p>
+                <div className="pt-6 border-t border-white/5">
+                  <div className="text-[10px] text-brand-500 uppercase font-black tracking-widest mb-2">{lang === 'ar' ? 'نصيحة الخبير' : 'Expert Advice'}</div>
+                  <p className="text-slate-200 text-xs italic">"{cat.advice}"</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Blueprint Lead Magnet CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-20 p-1 bg-gradient-to-r from-brand-500/20 via-cyan-500/20 to-brand-500/20 rounded-[2.5rem]"
+          >
+            <div className="glass p-10 md:p-16 rounded-[2.4rem] text-center relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 blur-[100px] pointer-events-none" />
+               <div className="relative z-10 max-w-3xl mx-auto">
+                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/20 rounded-full mb-8 text-brand-400 text-xs font-bold uppercase tracking-widest">
+                   <ShieldCheck size={16} />
+                   {t.blueprint.disclaimer}
+                 </div>
+                 <h3 className="text-3xl md:text-5xl font-black mb-6 leading-tight">
+                   {t.blueprint.title}
+                 </h3>
+                 <p className="text-slate-400 text-lg mb-12 leading-relaxed">
+                   {t.blueprint.description}
+                 </p>
+                 <button 
+                   onClick={generateBlueprintPDF}
+                   className="px-10 py-5 bg-white text-slate-950 rounded-2xl font-black text-lg hover:scale-105 active:scale-95 transition-all shadow-2xl flex items-center gap-4 mx-auto"
+                 >
+                   <FileText size={24} />
+                   {t.blueprint.cta}
+                 </button>
+               </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -705,20 +1293,78 @@ export default function App() {
               viewport={{ once: true }}
               className="glass p-10 rounded-[2.5rem] border-slate-800"
             >
-              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-                <div>
-                  <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">{t.contact.form.name}</label>
-                  <input type="text" className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" />
+              <form className="space-y-6" onSubmit={handleFormSubmit}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">{t.contact.form.name}</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">{t.contact.form.email}</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">{t.contact.form.email}</label>
-                  <input type="email" className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" />
+                  <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">
+                    {lang === 'ar' ? 'اختر الخدمات المطلوبة' : 'Select Required Services'}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {servicesList.map((service) => (
+                      <button
+                        key={service}
+                        type="button"
+                        onClick={() => toggleService(service)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                          selectedServices.includes(service) 
+                            ? 'bg-brand-500 border-brand-500 text-black' 
+                            : 'bg-white/5 border-white/10 text-slate-400 hover:border-brand-500'
+                        }`}
+                      >
+                        {service}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    {lang === 'ar' ? 'خدمة أخرى (اختياري)' : 'Other Service (Optional)'}
+                  </label>
+                  <input 
+                    type="text" 
+                    value={customService}
+                    onChange={(e) => setCustomService(e.target.value)}
+                    placeholder={lang === 'ar' ? 'مثلاً: تطوير تطبيق موبايل...' : 'e.g. Mobile App Development...'}
+                    className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">{t.contact.form.message}</label>
-                  <textarea rows={4} className="w-full glass p-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white resize-none"></textarea>
+                  <textarea 
+                    rows={4} 
+                    value={formData.message}
+                    onChange={(e) => setFormData({...formData, message: e.target.value})}
+                    className="w-full glass p-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white resize-none"
+                  ></textarea>
                 </div>
-                <button className="w-full py-5 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-bold text-lg transition-all transform active:scale-95 shadow-xl shadow-brand-900/30">
+                <button 
+                  type="submit"
+                  className="w-full py-5 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-bold text-lg transition-all transform active:scale-95 shadow-xl shadow-brand-900/30"
+                >
                   {t.contact.form.send}
                 </button>
               </form>
@@ -791,8 +1437,8 @@ export default function App() {
                       {activeTab === 'terms' && t.assistant.terms.map((item, i) => (
                         <div key={i} className="border-b border-white/5 pb-4 last:border-0">
                            <div className={`font-bold text-white text-xs mb-1 flex items-center gap-2 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-                              <div className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
-                              {item.title}
+                               <div className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
+                               {item.title}
                            </div>
                            <div className={`text-slate-500 text-[11px] leading-relaxed ${lang === 'ar' ? 'text-right' : ''}`}>{item.content}</div>
                         </div>
