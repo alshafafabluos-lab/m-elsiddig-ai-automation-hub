@@ -866,7 +866,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Hero Section */}
-      <section id="home" className="relative min-h-screen flex items-center pt-20 overflow-hidden">
+      <section id="home" className="relative min-h-screen flex items-center pt-20 pb-32 overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-20">
           <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-500/20 blur-[120px] rounded-full" />
           <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-cyan-500/20 blur-[120px] rounded-full" />
@@ -948,7 +948,7 @@ export default function App() {
       </section>
 
       {/* Impact Numbers Section */}
-      <section className="relative z-10 -mt-12 mb-20">
+      <section className="relative z-10 -mt-8 md:-mt-12 mb-20">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
