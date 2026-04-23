@@ -408,12 +408,23 @@ const translations: Record<Language, Translation> = {
 };
 
 const portfolioItems = [
-  { id: 1, url: new URL('/project1.png', import.meta.url).href, title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
-  { id: 2, url: new URL('/project2.jpg', import.meta.url).href, title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
-  { id: 3, url: new URL('/project3.jpg', import.meta.url).href, title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
-  { id: 4, url: new URL('/project4.jpg', import.meta.url).href, title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
-  { id: 5, url: new URL('/project5.png', import.meta.url).href, title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
+  { id: 1, url: 'project1.png', title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
+  { id: 2, url: 'project2.jpg', title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
+  { id: 3, url: 'project3.jpg', title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
+  { id: 4, url: 'project4.jpg', title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
+  { id: 5, url: 'project5.png', title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
 ];
+
+// --- Helper Functions ---
+
+const resolveImageUrl = (url: string) => {
+  if (url.startsWith('http')) return url;
+  // Robust resolution for Vite development and preview environments
+  const base = import.meta.env.BASE_URL || '/';
+  const cleanBase = base.endsWith('/') ? base : `${base}/`;
+  const cleanUrl = url.startsWith('/') ? url.slice(1) : url;
+  return `${cleanBase}${cleanUrl}`;
+};
 
 // --- Components ---
 
@@ -1037,7 +1048,7 @@ export default function App() {
               >
                 <div className="aspect-[4/3] overflow-hidden">
                   <img 
-                    src={item.url} 
+                    src={resolveImageUrl(item.url)} 
                     alt={item.title}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
@@ -1052,7 +1063,7 @@ export default function App() {
                   </div>
                   <h4 className="text-white font-bold text-xl mb-4">{item.title}</h4>
                   <a 
-                    href={item.url} 
+                    href={resolveImageUrl(item.url)} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-brand-400 font-bold hover:text-brand-300 transition-colors"
