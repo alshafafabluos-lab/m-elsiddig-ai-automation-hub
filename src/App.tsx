@@ -559,7 +559,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        if (u.email === 'alshafafabluos@gmail.com' && u.emailVerified) {
+        if (u.email === 'alshafafabluos@gmail.com') {
           setIsAdmin(true);
         } else {
           try {
@@ -576,24 +576,11 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const fetchStats = async () => {
-    if (!isAdmin) return;
-    try {
-      const q = query(collection(db, 'registrations'), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRegistrations(docs);
-      setTotalConfirmed(docs.filter((r: any) => r.status === 'confirmed').length);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'registrations');
-    }
-  };
-
   useEffect(() => {
     if (isAdmin) {
-      fetchStats();
-      // Refresh stats every minute for live counter
-      const interval = setInterval(fetchStats, 60000);
+      fetchRegistrations();
+      // Refresh every minute
+      const interval = setInterval(fetchRegistrations, 60000);
       return () => clearInterval(interval);
     }
   }, [isAdmin]);
@@ -617,9 +604,23 @@ export default function App() {
   const handleAdminLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (err) {
-      console.error(err);
+      // Force select account to help user switch if needed
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, provider);
+      console.log("Logged in:", result.user.email);
+    } catch (err: any) {
+      console.error("Login Error:", err);
+      let errorMsg = lang === 'ar' ? 'فشل تسجيل الدخول: ' : 'Login failed: ';
+      
+      if (err.code === 'auth/popup-blocked') {
+        errorMsg += lang === 'ar' ? 'تم حظر النافذة المنبثقة. يرجى السماح بالمنبثقات لهذا الموقع.' : 'Popup was blocked. Please allow popups for this site.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        errorMsg += lang === 'ar' ? 'هذا النطاق (Domain) غير مصرح به في إعدادات Firebase.' : 'This domain is not authorized in Firebase settings.';
+      } else {
+        errorMsg += err.message;
+      }
+      
+      alert(errorMsg);
     }
   };
 
@@ -658,7 +659,7 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       setWorkshopSubmitted(true);
-      fetchStats(); // Update counter locally
+      fetchRegistrations(); // Update list locally
     } catch (err: any) {
       setWorkshopError(lang === 'ar' ? 'فشل التسجيل، يرجى المحاولة لاحقاً.' : 'Registration failed, please try again.');
       try {
@@ -693,7 +694,7 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'registrations', id));
       setRegistrations(prev => prev.filter(r => r.id !== id));
-      fetchStats();
+      fetchRegistrations();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, path);
     }
