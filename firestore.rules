@@ -23,9 +23,11 @@ service cloud.firestore {
                data.email is string && data.email.size() > 0 && data.email.size() < 200 &&
                data.phone is string && data.phone.size() > 0 && data.phone.size() < 50 &&
                data.age is number && data.age > 0 && data.age < 120 &&
-               data.profession is string && data.profession.size() > 0 &&
-               data.field is string && data.field.size() > 0 &&
-               data.aiInterest is string && data.aiInterest.size() > 0 &&
+               data.profession is string && data.profession.size() > 0 && data.profession.size() < 200 &&
+               data.field is string && data.field.size() > 0 && data.field.size() < 200 &&
+               data.experienceLevel is string && data.experienceLevel in ['beginner', 'intermediate', 'advanced'] &&
+               data.comfortableWithTech is number && data.comfortableWithTech >= 1 && data.comfortableWithTech <= 5 &&
+               data.aiInterest is string && data.aiInterest.size() > 0 && data.aiInterest.size() < 2000 &&
                data.createdAt == request.time &&
                data.status == 'pending';
       }
@@ -38,6 +40,12 @@ service cloud.firestore {
     match /settings/workshop {
       allow read: if true; // Public can see if it's active
       allow write: if isAdmin();
+    }
+
+    // Admins
+    match /admins/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list, write: if isAdmin();
     }
   }
 }

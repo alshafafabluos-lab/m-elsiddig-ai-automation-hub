@@ -577,22 +577,28 @@ export default function App() {
   }, []);
 
   const fetchStats = async () => {
+    if (!isAdmin) return;
     try {
       const q = query(collection(db, 'registrations'), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRegistrations(docs);
       setTotalConfirmed(docs.filter((r: any) => r.status === 'confirmed').length);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, 'registrations');
     }
   };
 
   useEffect(() => {
-    fetchStats();
-    // Refresh stats every minute for live counter
-    const interval = setInterval(fetchStats, 60000);
+    if (isAdmin) {
+      fetchStats();
+      // Refresh stats every minute for live counter
+      const interval = setInterval(fetchStats, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin]);
 
+  useEffect(() => {
     // Language Hint Logic
     const hasSeenHint = localStorage.getItem('hasSeenLangHint');
     if (!hasSeenHint) {
@@ -603,12 +609,9 @@ export default function App() {
         localStorage.setItem('hasSeenLangHint', 'true');
       }, 2000);
       return () => {
-        clearInterval(interval);
         clearTimeout(timer);
       };
     }
-
-    return () => clearInterval(interval);
   }, []);
 
   const handleAdminLogin = async () => {

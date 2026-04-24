@@ -11,11 +11,14 @@
         "age": { "type": "number", "description": "Age of the registrant" },
         "profession": { "type": "string", "description": "Job title or student status" },
         "field": { "type": "string", "description": "Field of work or study" },
+        "experienceLevel": { "type": "string", "description": "Technical expertise level" },
+        "mainGoal": { "type": "string", "description": "Primary learning objective" },
+        "comfortableWithTech": { "type": "number", "description": "Rating of AI comfort level" },
         "aiInterest": { "type": "string", "description": "Reason for interest in AI workshop" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of registration" },
         "status": { "type": "string", "enum": ["pending", "contacted", "confirmed", "rejected"], "description": "Status of the application" }
       },
-      "required": ["fullName", "email", "phone", "age", "profession", "field", "aiInterest", "createdAt", "status"]
+      "required": ["fullName", "email", "phone", "age", "profession", "field", "experienceLevel", "comfortableWithTech", "aiInterest", "createdAt", "status"]
     },
     "WorkshopSettings": {
       "title": "Workshop Settings",
