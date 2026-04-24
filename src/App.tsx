@@ -29,16 +29,42 @@ import {
   Star,
   BookOpen,
   FileText,
-  ShieldCheck
+  ShieldCheck,
+  Calendar,
+  Users,
+  Lock,
+  Eye,
+  Trash2,
+  LogOut,
+  ChevronRight,
+  Sparkles,
+  RefreshCcw,
+  Languages
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { db, auth } from './firebase';
+import { 
+  collection, 
+  addDoc, 
+  serverTimestamp, 
+  getDocs, 
+  query, 
+  orderBy, 
+  doc, 
+  getDoc,
+  deleteDoc,
+  updateDoc 
+} from 'firebase/firestore';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut,
+  type User 
+} from 'firebase/auth';
 
 // --- Assets ---
-import project1 from './project1.png';
-import project2 from './project2.jpg';
-import project3 from './project3.jpg';
-import project4 from './project4.jpg';
-import project5 from './project5.png';
+// (Local images moved to src for bundling if needed in future)
 
 // --- Types ---
 type Language = 'ar' | 'en';
@@ -415,14 +441,79 @@ const translations: Record<Language, Translation> = {
 };
 
 const portfolioItems = [
-  { id: 1, url: project1, title: 'BrandAI: Customer Support Ecosystem', tag: 'Full Integration', tech: ['Python', 'OpenAI', 'Pinecone'] },
-  { id: 2, url: project2, title: 'AI Digital Employee (Flex-AI)', tag: 'AI Agent', tech: ['LangChain', 'Make.com', 'Zapier'] },
-  { id: 3, url: project3, title: 'Operational Bleed Analysis Tool', tag: 'Automation', tech: ['Pandas', 'Google Sheets', 'Apps Script'] },
-  { id: 4, url: project4, title: 'Flex-AI PRO Systems', tag: 'Systems Evolution', tech: ['Custom API', 'Workflow', 'No-Code'] },
-  { id: 5, url: project5, title: 'Custom AI Terminal & Scripting', tag: 'Data Engineering', tech: ['Bash', 'Python', 'LLM'] }
+  { 
+    id: 1, 
+    icon: <Cpu className="w-8 h-8" />, 
+    color: "from-blue-600 to-cyan-600",
+    title: 'BrandAI: Customer Support Ecosystem', 
+    tag: 'Full Integration', 
+    tech: ['Python', 'OpenAI', 'Pinecone'],
+    desc: 'An end-to-end AI system automating 90% of customer queries with deep knowledge base integration.'
+  },
+  { 
+    id: 2, 
+    icon: <Bot className="w-8 h-8" />, 
+    color: "from-purple-600 to-brand-600",
+    title: 'AI Digital Employee (Flex-AI)', 
+    tag: 'AI Agent', 
+    tech: ['LangChain', 'Make.com', 'Zapier'],
+    desc: 'A multi-modal agent capable of handling admin tasks, scheduling, and data entry autonomously.'
+  },
+  { 
+    id: 3, 
+    icon: <Database className="w-8 h-8" />, 
+    color: "from-amber-600 to-orange-600",
+    title: 'Operational Bleed Analysis Tool', 
+    tag: 'Automation', 
+    tech: ['Pandas', 'Google Sheets', 'Apps Script'],
+    desc: 'Data pipeline identifying financial leaks and operational inefficiencies in real-time.'
+  },
+  { 
+    id: 4, 
+    icon: <Zap className="w-8 h-8" />, 
+    color: "from-green-600 to-emerald-600",
+    title: 'Flex-AI PRO Systems', 
+    tag: 'Systems Evolution', 
+    tech: ['Custom API', 'Workflow', 'No-Code'],
+    desc: 'Advanced workflow scaling solutions for high-volume enterprise data management.'
+  },
+  { 
+    id: 5, 
+    icon: <Code2 className="w-8 h-8" />, 
+    color: "from-red-600 to-rose-600",
+    title: 'Custom AI Terminal & Scripting', 
+    tag: 'Data Engineering', 
+    tech: ['Bash', 'Python', 'LLM'],
+    desc: 'Proprietary CLI tools for rapid AI model deployment and testing environments.'
+  }
 ];
 
 // --- Components ---
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 export default function App() {
   const [lang, setLang] = useState<Language>('ar');
@@ -432,6 +523,193 @@ export default function App() {
   const [isBotOpen, setIsBotOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'faq' | 'terms' | 'process'>('faq');
   const [userRating, setUserRating] = useState<number | null>(null);
+
+  // Workshop Registration State
+  const [showWorkshopForm, setShowWorkshopForm] = useState(false);
+  const [isSubmittingWorkshop, setIsSubmittingWorkshop] = useState(false);
+  const [workshopSubmitted, setWorkshopSubmitted] = useState(false);
+  const [workshopError, setWorkshopError] = useState<string | null>(null);
+  const [workshopStep, setWorkshopStep] = useState(1);
+  const [workshopFormData, setWorkshopFormData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    age: '',
+    profession: '',
+    field: '',
+    experienceLevel: 'beginner',
+    mainGoal: 'learning',
+    comfortableWithTech: 3,
+    aiInterest: ''
+  });
+
+  // Language Hint State
+  const [showLangHint, setShowLangHint] = useState(false);
+
+  // Admin State
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [isLoadingRegs, setIsLoadingRegs] = useState(false);
+  const [adminSearch, setAdminSearch] = useState('');
+  const [totalConfirmed, setTotalConfirmed] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      if (u) {
+        if (u.email === 'alshafafabluos@gmail.com' && u.emailVerified) {
+          setIsAdmin(true);
+        } else {
+          try {
+            const adminDoc = await getDoc(doc(db, 'admins', u.uid));
+            setIsAdmin(adminDoc.exists());
+          } catch (err) {
+            setIsAdmin(false);
+          }
+        }
+      } else {
+        setIsAdmin(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const q = query(collection(db, 'registrations'), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRegistrations(docs);
+      setTotalConfirmed(docs.filter((r: any) => r.status === 'confirmed').length);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    // Refresh stats every minute for live counter
+    const interval = setInterval(fetchStats, 60000);
+
+    // Language Hint Logic
+    const hasSeenHint = localStorage.getItem('hasSeenLangHint');
+    if (!hasSeenHint) {
+      const timer = setTimeout(() => {
+        setShowLangHint(true);
+        // Hide after 8 seconds
+        setTimeout(() => setShowLangHint(false), 8000);
+        localStorage.setItem('hasSeenLangHint', 'true');
+      }, 2000);
+      return () => {
+        clearInterval(interval);
+        clearTimeout(timer);
+      };
+    }
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleAdminLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchRegistrations = async () => {
+    setIsLoadingRegs(true);
+    const path = 'registrations';
+    try {
+      const q = query(collection(db, path), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRegistrations(docs);
+      setTotalConfirmed(docs.filter((r: any) => r.status === 'confirmed').length);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, path);
+    } finally {
+      setIsLoadingRegs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showAdmin && isAdmin) {
+      fetchRegistrations();
+    }
+  }, [showAdmin, isAdmin]);
+
+  const handleWorkshopSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingWorkshop(true);
+    setWorkshopError(null);
+    const path = 'registrations';
+    try {
+      await addDoc(collection(db, path), {
+        ...workshopFormData,
+        age: parseInt(workshopFormData.age),
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      setWorkshopSubmitted(true);
+      fetchStats(); // Update counter locally
+    } catch (err: any) {
+      setWorkshopError(lang === 'ar' ? 'فشل التسجيل، يرجى المحاولة لاحقاً.' : 'Registration failed, please try again.');
+      try {
+        handleFirestoreError(err, OperationType.CREATE, path);
+      } catch (innerErr) {
+        console.error(innerErr);
+      }
+    } finally {
+      setIsSubmittingWorkshop(false);
+    }
+  };
+
+  const updateRegStatus = async (id: string, status: string) => {
+    const path = `registrations/${id}`;
+    try {
+      await updateDoc(doc(db, 'registrations', id), { status });
+      setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+      if (status === 'confirmed') setTotalConfirmed(prev => prev + 1);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  };
+
+  const closeWorkshopModal = () => {
+    setShowWorkshopForm(false);
+    setWorkshopStep(1);
+  };
+
+  const deleteReg = async (id: string) => {
+    if (!confirm('Are you sure?')) return;
+    const path = `registrations/${id}`;
+    try {
+      await deleteDoc(doc(db, 'registrations', id));
+      setRegistrations(prev => prev.filter(r => r.id !== id));
+      fetchStats();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  };
+
+  const copyToClipboard = (type: 'emails' | 'phones') => {
+    const data = registrations
+      .filter(r => r.status !== 'rejected')
+      .map(r => type === 'emails' ? r.email : r.phone)
+      .join(', ');
+    navigator.clipboard.writeText(data);
+    alert(lang === 'ar' ? 'تم النسخ بنجاح!' : 'Copied to clipboard!');
+  };
+
+  const filteredRegistrations = registrations.filter(r => 
+    r.fullName.toLowerCase().includes(adminSearch.toLowerCase()) ||
+    r.field.toLowerCase().includes(adminSearch.toLowerCase()) ||
+    r.profession.toLowerCase().includes(adminSearch.toLowerCase())
+  );
 
   const t = translations[lang];
 
@@ -782,21 +1060,540 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-slate-950 text-white selection:bg-brand-500/30 selection:text-brand-200 relative transition-colors duration-300 ${lang === 'ar' ? 'font-sans' : 'font-sans'}`}>
+      {/* Workshop Banner / Header Integration */}
+      <div className="fixed top-20 left-0 right-0 z-[45] flex justify-center pointer-events-none">
+        <motion.div 
+          initial={{ y: -50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="pointer-events-auto"
+        >
+          <button 
+            onClick={() => setShowWorkshopForm(true)}
+            className="flex items-center gap-3 px-6 py-2 bg-gradient-to-r from-brand-600/90 to-cyan-600/90 backdrop-blur-md rounded-full border border-white/20 shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs font-black uppercase tracking-[0.2em] group"
+          >
+            <Sparkles size={14} className="text-yellow-400 group-hover:rotate-12 transition-transform" />
+            <span>
+              {lang === 'ar' 
+                ? `ورشة الذكاء الاصطناعي (بقي ${Math.max(0, 20 - totalConfirmed)} مقاعد)` 
+                : `AI Workshop (${Math.max(0, 20 - totalConfirmed)} Seats Left)`}
+            </span>
+            <ArrowRight size={14} className={lang === 'ar' ? 'rotate-180' : ''} />
+          </button>
+        </motion.div>
+      </div>
+
+      {/* Workshop Registration Modal */}
+      <AnimatePresence>
+        {showWorkshopForm && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="glass max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-[2.5rem] relative"
+            >
+              <button 
+                onClick={closeWorkshopModal}
+                className="absolute top-6 right-6 p-2 rounded-full glass hover:bg-white/10 transition-colors z-10"
+              >
+                <X size={24} />
+              </button>
+
+              <div className="p-8 md:p-12">
+                {!workshopSubmitted ? (
+                  <>
+                    <div className="text-center mb-8">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-500/10 border border-brand-500/20 rounded-full mb-6 text-brand-400 text-[10px] font-black uppercase tracking-widest">
+                        <Calendar size={14} />
+                        {lang === 'ar' ? 'مقاعد محدودة - ٢٠ فقط' : 'Limited Seats - 20 Only'}
+                      </div>
+                       <h3 className="text-2xl md:text-3xl font-black mb-4">
+                        {lang === 'ar' ? 'رحلتك نحو التميز بالذكاء الاصطناعي' : 'Your Journey to AI Mastery'}
+                      </h3>
+                      <p className="text-slate-400 text-sm max-w-lg mx-auto">
+                        {lang === 'ar' 
+                          ? 'أجب على هذه الأسئلة لتمكننا من تخصيص تجربتك بشكل أفضل' 
+                          : 'Answer these questions to help us tailor your experience better'}
+                      </p>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="flex items-center gap-2 mb-10 max-w-xs mx-auto">
+                      {[1, 2, 3].map((s) => (
+                        <div key={s} className="flex-grow flex items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${workshopStep >= s ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/30' : 'bg-slate-800 text-slate-500'}`}>
+                            {s}
+                          </div>
+                          {s < 3 && <div className={`flex-grow h-0.5 mx-1 rounded-full ${workshopStep > s ? 'bg-brand-600' : 'bg-slate-800'}`} />}
+                        </div>
+                      ))}
+                    </div>
+
+                    <form onSubmit={handleWorkshopSubmit} className="space-y-8 max-w-xl mx-auto">
+                      <AnimatePresence mode="wait">
+                        {workshopStep === 1 && (
+                          <motion.div 
+                            key="step1"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-6"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'الاسم بالكامل' : 'Full Name'}</label>
+                                <input 
+                                  required 
+                                  type="text"
+                                  value={workshopFormData.fullName}
+                                  onChange={(e) => setWorkshopFormData({...workshopFormData, fullName: e.target.value})}
+                                  className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                                  placeholder={lang === 'ar' ? 'محمد بن زيد' : 'John Doe'}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'رقم الواتساب' : 'WhatsApp Number'}</label>
+                                <input 
+                                  required 
+                                  type="tel"
+                                  value={workshopFormData.phone}
+                                  onChange={(e) => setWorkshopFormData({...workshopFormData, phone: e.target.value})}
+                                  className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white text-left" 
+                                  dir="ltr"
+                                  placeholder="+249..."
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}</label>
+                                <input 
+                                  required 
+                                  type="email"
+                                  value={workshopFormData.email}
+                                  onChange={(e) => setWorkshopFormData({...workshopFormData, email: e.target.value})}
+                                  className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                                  placeholder="example@mail.com"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'العمر' : 'Age'}</label>
+                                <input 
+                                  required 
+                                  type="number"
+                                  value={workshopFormData.age}
+                                  onChange={(e) => setWorkshopFormData({...workshopFormData, age: e.target.value})}
+                                  className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                                />
+                              </div>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (workshopFormData.fullName && workshopFormData.phone && workshopFormData.email && workshopFormData.age) {
+                                  setWorkshopStep(2);
+                                }
+                              }}
+                              className="w-full py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 group"
+                            >
+                              {lang === 'ar' ? 'التالي' : 'Next Step'} 
+                              <ArrowRight size={20} className={`group-hover:translate-x-1 transition-transform ${lang === 'ar' ? 'rotate-180 group-hover:-translate-x-1' : ''}`} />
+                            </button>
+                          </motion.div>
+                        )}
+
+                        {workshopStep === 2 && (
+                          <motion.div 
+                            key="step2"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-6"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'المهنة / الدراسة' : 'Profession / Studies'}</label>
+                                <input 
+                                  required 
+                                  type="text"
+                                  value={workshopFormData.profession}
+                                  onChange={(e) => setWorkshopFormData({...workshopFormData, profession: e.target.value})}
+                                  className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                                  placeholder={lang === 'ar' ? 'طالب، موظف، مستقل...' : 'Student, Employee, etc...'}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'المجال' : 'Field'}</label>
+                                <input 
+                                  required 
+                                  type="text"
+                                  value={workshopFormData.field}
+                                  onChange={(e) => setWorkshopFormData({...workshopFormData, field: e.target.value})}
+                                  className="w-full h-14 glass px-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white" 
+                                  placeholder={lang === 'ar' ? 'هندسة، تسويق، طب، الخ..' : 'Marketing, IT, Medicine, etc..'}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-4">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'مستوى خبرتك التكنولوجية' : 'Your Tech Expertise Level'}</label>
+                              <div className="grid grid-cols-3 gap-3">
+                                {['beginner', 'intermediate', 'advanced'].map((lvl) => (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    onClick={() => setWorkshopFormData({...workshopFormData, experienceLevel: lvl})}
+                                    className={`py-4 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${workshopFormData.experienceLevel === lvl ? 'bg-brand-600/20 border-brand-500 text-brand-400' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'}`}
+                                  >
+                                    {lang === 'ar' 
+                                      ? (lvl === 'beginner' ? 'مبتدئ' : lvl === 'intermediate' ? 'متوسط' : 'متقدم')
+                                      : (lvl === 'beginner' ? 'Beginner' : lvl === 'intermediate' ? 'Medium' : 'Pro')}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex gap-4">
+                              <button 
+                                type="button"
+                                onClick={() => setWorkshopStep(1)}
+                                className="w-1/3 py-5 glass hover:bg-slate-800 text-slate-400 rounded-2xl font-bold transition-all"
+                              >
+                                {lang === 'ar' ? 'السابق' : 'Previous'}
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  if (workshopFormData.profession && workshopFormData.field) {
+                                    setWorkshopStep(3);
+                                  }
+                                }}
+                                className="flex-grow py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 group"
+                              >
+                                {lang === 'ar' ? 'المتابعة' : 'Almost There'} 
+                                <ArrowRight size={20} className={`group-hover:translate-x-1 transition-transform ${lang === 'ar' ? 'rotate-180 group-hover:-translate-x-1' : ''}`} />
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        {workshopStep === 3 && (
+                          <motion.div 
+                            key="step3"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-8"
+                          >
+                            <div className="space-y-4">
+                              <div className="flex justify-between items-center px-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">{lang === 'ar' ? 'مدى ارتياحك مع الذكاء الاصطناعي حالياً' : 'Current AI Comfort Level'}</label>
+                                <span className="text-brand-500 font-black text-xl">{workshopFormData.comfortableWithTech}/5</span>
+                              </div>
+                              <div className="relative h-6 flex items-center">
+                                <input 
+                                  type="range" 
+                                  min="1" 
+                                  max="5" 
+                                  value={workshopFormData.comfortableWithTech}
+                                  onChange={(e) => setWorkshopFormData({...workshopFormData, comfortableWithTech: parseInt(e.target.value)})}
+                                  className="w-full accent-brand-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                                />
+                              </div>
+                              <div className="flex justify-between text-[8px] font-black uppercase text-slate-600 px-1">
+                                <span>{lang === 'ar' ? 'مبتدئ جداً' : 'Total Newbie'}</span>
+                                <span>{lang === 'ar' ? 'خبير' : 'Expert AI User'}</span>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{lang === 'ar' ? 'ماذا تأمل أن تحقق من خلال هذه الورشة؟' : 'What do you aim to achieve from this workshop?'}</label>
+                               <textarea 
+                                required 
+                                rows={4}
+                                value={workshopFormData.aiInterest}
+                                onChange={(e) => setWorkshopFormData({...workshopFormData, aiInterest: e.target.value})}
+                                className="w-full glass p-6 rounded-2xl border-slate-700 outline-none focus:border-brand-500 transition-all text-white resize-none text-sm leading-relaxed"
+                                placeholder={lang === 'ar' ? 'اكتب طموحاتك هنا بكل وضوح...' : 'Write your ambitions here clearly...'}
+                              ></textarea>
+                            </div>
+
+                            {workshopError && <div className="text-red-400 text-xs text-center font-bold px-4 py-3 bg-red-500/10 rounded-xl border border-red-500/20">{workshopError}</div>}
+
+                            <div className="flex gap-4">
+                              <button 
+                                type="button"
+                                onClick={() => setWorkshopStep(2)}
+                                className="w-1/3 py-5 glass hover:bg-slate-800 text-slate-400 rounded-2xl font-bold transition-all"
+                              >
+                                {lang === 'ar' ? 'السابق' : 'Back'}
+                              </button>
+                              <button 
+                                type="submit"
+                                disabled={isSubmittingWorkshop}
+                                className="flex-grow py-5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-2xl font-black text-lg transition-all transform active:scale-95 shadow-xl shadow-brand-500/20"
+                              >
+                                {isSubmittingWorkshop 
+                                  ? (lang === 'ar' ? 'جاري الإرسال...' : 'SUBMITTING...') 
+                                  : (lang === 'ar' ? 'إرسال بياناتي الآن' : 'Finish & Join')}
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </form>
+                  </>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="w-24 h-24 bg-brand-500/10 rounded-full flex items-center justify-center mx-auto mb-8">
+                      <CheckCircle2 size={48} className="text-brand-500" />
+                    </div>
+                    <h3 className="text-3xl font-black mb-4">
+                      {lang === 'ar' ? 'شكراً لاهتمامك الشديد!' : 'Thank you for your interest!'}
+                    </h3>
+                    <p className="text-slate-400 leading-relaxed mb-10 max-w-md mx-auto">
+                      {lang === 'ar' 
+                        ? 'لقد استلمنا طلبك بنجاح. سنقوم بمراجعة جميع الطلبات بعناية واختيار ٢٠ مشاركاً للتواصل معهم وتحديد المكان والموعد النهائي. وجودك يهمنا وسنتواصل معك قريباً.' 
+                        : 'We have received your application. We will carefully review all requests and select 20 participants to contact regarding the final location and time. Your presence matters to us; we will be in touch soon.'}
+                    </p>
+                    <button 
+                      onClick={closeWorkshopModal}
+                      className="px-8 py-4 glass hover:bg-white/5 rounded-2xl font-bold transition-all"
+                    >
+                      {lang === 'ar' ? 'إغلاق النافذة' : 'Close Window'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hidden Admin Dashboard Modal */}
+      <AnimatePresence>
+        {showAdmin && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`fixed inset-0 z-[2000] bg-slate-950 flex flex-col p-6 overflow-hidden ${lang === 'ar' ? 'rtl' : ''}`}
+            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+          >
+            <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-6">
+              <h2 className="text-2xl font-black text-gradient uppercase tracking-widest flex items-center gap-3">
+                <Lock size={24} />
+                {lang === 'ar' ? 'نظام إدارة الورشة v1.0' : 'Workshop OS v1.0'}
+              </h2>
+              <div className="flex items-center gap-4">
+                {user ? (
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-slate-500 font-mono">{user.email}</span>
+                    <button onClick={() => signOut(auth)} className="p-2 glass text-red-400 hover:bg-red-500/10 rounded-xl transition-all"><LogOut size={20} /></button>
+                  </div>
+                ) : (
+                  <button onClick={handleAdminLogin} className="px-4 py-2 glass hover:bg-brand-500/10 text-brand-400 text-xs font-bold rounded-xl transition-all">
+                    {lang === 'ar' ? 'تسجيل الدخول' : 'SIGN IN'}
+                  </button>
+                )}
+                <button onClick={() => setShowAdmin(false)} className="p-2 glass hover:bg-white/10 rounded-xl transition-all"><X size={20} /></button>
+              </div>
+            </div>
+
+            {!isAdmin ? (
+               <div className="flex-grow flex items-center justify-center">
+                  <div className="text-center max-w-sm">
+                    <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500">
+                      <ShieldCheck size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'الدخول مقيد' : 'Access Restricted'}</h3>
+                    <p className="text-slate-500 text-sm mb-8 italic">
+                      {lang === 'ar' ? 'فقط المسؤولون المعتمدون يمكنهم عرض بيانات التسجيل.' : 'Only authenticated administrators can view registration data.'}
+                    </p>
+                    {!user && (
+                      <button onClick={handleAdminLogin} className="w-full py-4 bg-brand-600 text-white rounded-2xl font-bold shadow-lg">
+                        {lang === 'ar' ? 'تسجيل الدخول عبر جوجل' : 'Authenticate with Google'}
+                      </button>
+                    )}
+                  </div>
+               </div>
+            ) : (
+              <div className="flex-grow flex flex-col gap-6 overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="glass p-6 rounded-[2rem]">
+                    <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">{lang === 'ar' ? 'إجمالي الطلبات' : 'Total Requests'}</div>
+                    <div className="text-4xl font-black">{registrations.length}</div>
+                  </div>
+                  <div className="glass p-6 rounded-[2rem]">
+                    <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">{lang === 'ar' ? 'بانتظار المراجعة' : 'Pending'}</div>
+                    <div className="text-4xl font-black text-amber-500">{registrations.filter(r => r.status === 'pending').length}</div>
+                  </div>
+                  <div className="glass p-6 rounded-[2rem]">
+                    <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">{lang === 'ar' ? 'تم القبول' : 'Confirmed'}</div>
+                    <div className="text-4xl font-black text-emerald-500">{registrations.filter(r => r.status === 'confirmed').length}</div>
+                  </div>
+                  <div className="glass p-6 rounded-[2rem]">
+                    <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">{lang === 'ar' ? 'المقاعد المتبقية' : 'Seats Remaining'}</div>
+                    <div className="text-4xl font-black text-brand-500">{20 - registrations.filter(r => r.status === 'confirmed').length}</div>
+                  </div>
+                </div>
+
+                <div className="flex-grow glass rounded-[2.5rem] overflow-hidden flex flex-col">
+                  <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                      <span className="text-xs font-black uppercase tracking-widest text-slate-400 shrink-0">{lang === 'ar' ? 'تحليلات المتقدمين' : 'Registrant Intelligence'}</span>
+                      <input 
+                        type="text" 
+                        placeholder={lang === 'ar' ? 'بحث (الاسم، المجال، المهنة)...' : 'Search (Name, Field, Jobs)...'}
+                        value={adminSearch}
+                        onChange={(e) => setAdminSearch(e.target.value)}
+                        className="bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:border-brand-500 outline-none w-full md:w-64 transition-all" 
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <button onClick={() => copyToClipboard('emails')} className="px-3 py-2 glass hover:bg-brand-500/10 text-brand-400 text-[10px] font-bold rounded-xl transition-all flex items-center gap-2 border border-brand-500/20">
+                         <Mail size={12} /> {lang === 'ar' ? 'نسخ الإيميلات' : 'Copy Emails'}
+                       </button>
+                       <button onClick={() => copyToClipboard('phones')} className="px-3 py-2 glass hover:bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-xl transition-all flex items-center gap-2 border border-emerald-500/20">
+                         <Phone size={12} /> {lang === 'ar' ? 'نسخ الهواتف' : 'Copy Phones'}
+                       </button>
+                       <button onClick={fetchRegistrations} className="p-2 glass hover:bg-white/10 rounded-xl text-slate-400 transition-all">
+                         <RefreshCcw size={16} />
+                       </button>
+                    </div>
+                  </div>
+                  <div className="flex-grow overflow-auto custom-scrollbar p-6">
+                    {isLoadingRegs ? (
+                      <div className="h-full flex items-center justify-center text-slate-500 font-mono animate-pulse">
+                        {lang === 'ar' ? 'جاري جلب البيانات...' : 'SYSTEM_SCANNING_DATABASE...'}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {filteredRegistrations.map((reg) => (
+                          <div key={reg.id} className="glass border-slate-800 p-6 rounded-3xl hover:border-brand-500/30 transition-all group">
+                            <div className="flex flex-col md:flex-row justify-between gap-6">
+                              <div className={`flex-grow ${lang === 'ar' ? 'md:border-l md:pl-6' : 'md:border-r md:pr-6'} border-slate-800`}>
+                                <div className="flex items-center gap-3 mb-2">
+                                  <h4 className="text-lg font-bold text-white">{reg.fullName}</h4>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                                    reg.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                    reg.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                  }`}>
+                                    {lang === 'ar' ? (
+                                      reg.status === 'confirmed' ? 'مقبول' :
+                                      reg.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'
+                                    ) : reg.status}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-xs">
+                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'البريد:' : 'Email:'}</span> <span className="text-slate-300">{reg.email}</span></div>
+                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'الهاتف:' : 'Phone:'}</span> <span className="text-slate-300" dir="ltr">{reg.phone}</span></div>
+                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'العمر:' : 'Age:'}</span> <span className="text-slate-300">{reg.age}</span></div>
+                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'التخصص:' : 'Role:'}</span> <span className="text-slate-300">{reg.profession} / {reg.field}</span></div>
+                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'المستوى:' : 'Level:'}</span> <span className="text-slate-300 uppercase">{reg.experienceLevel}</span></div>
+                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'التقييم:' : 'Rating:'}</span> <span className="text-slate-300">{reg.comfortableWithTech}/5</span></div>
+                                </div>
+                              </div>
+                              <div className="md:w-1/3 flex flex-col justify-between">
+                                <p className="text-xs text-slate-400 italic mb-4 leading-relaxed line-clamp-3">"{reg.aiInterest}"</p>
+                                <div className="flex justify-end gap-2">
+                                  <select 
+                                    value={reg.status} 
+                                    onChange={(e) => updateRegStatus(reg.id, e.target.value)}
+                                    className="bg-slate-900 border border-slate-700 text-[10px] font-bold text-white rounded px-3 py-1 outline-none appearance-none cursor-pointer hover:border-brand-500 transition-colors"
+                                  >
+                                    <option value="pending">{lang === 'ar' ? 'قيد الانتظار' : 'Pending'}</option>
+                                    <option value="confirmed">{lang === 'ar' ? 'قبول' : 'Confirm'}</option>
+                                    <option value="rejected">{lang === 'ar' ? 'رفض' : 'Reject'}</option>
+                                  </select>
+                                  <button onClick={() => deleteReg(reg.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={16} /></button>
+                                  <a href={`https://wa.me/${reg.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-2 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all"><MessageSquare size={16} /></a>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {filteredRegistrations.length === 0 && !isLoadingRegs && (
+                          <div className="text-center py-20 text-slate-500 font-mono text-sm">NO_DATA_MATCHES_CRITERIA</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Interactive Cursor Spotlight */}
       <div 
         className="fixed inset-0 z-0 pointer-events-none opacity-40 transition-opacity duration-300"
         style={{
-          background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(37, 99, 235, 0.15), transparent 80%)`
+          background: `radial-gradient(1000px circle at ${mousePos.x}px ${mousePos.y}px, rgba(14, 165, 233, 0.08), transparent 80%)`
         }}
       />
-      {/* Scroll Progress Bar */}
+      {/* Language Selector Hint / Welcome Bar */}
+      <AnimatePresence>
+        {showLangHint && (
+          <motion.div
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-lg"
+          >
+            <div className="glass p-4 rounded-2xl border-brand-500/30 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-brand-500/20 rounded-xl text-brand-400">
+                  <Languages size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white">
+                    {lang === 'ar' ? 'هل تفضل المتابعة بالعربية؟' : 'Prefer to continue in English?'}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {lang === 'ar' ? 'يمكنك دائماً التبديل من أعلى القائمة' : 'You can always switch from the top menu'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    setLang(lang === 'ar' ? 'en' : 'ar');
+                    setShowLangHint(false);
+                    localStorage.setItem('hasSeenLangHint', 'true');
+                  }}
+                  className="px-4 py-2 bg-brand-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-brand-500 transition-all"
+                >
+                  {lang === 'ar' ? 'English' : 'العربية'}
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowLangHint(false);
+                    localStorage.setItem('hasSeenLangHint', 'true');
+                  }}
+                  className="px-4 py-2 glass text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-white/10 transition-all"
+                >
+                  {lang === 'ar' ? 'حسناً' : 'OK'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div 
         className="fixed top-0 left-0 right-0 h-1 bg-brand-500 z-[100] origin-left"
         style={{ scaleX }}
       />
-      {/* Engineering Grid Background */}
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-20">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:40px_40px]" />
+      {/* Main Enhanced Background Layer */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-mesh opacity-60" />
+        <div className="absolute inset-0 bg-grid opacity-30" />
+        <div className="absolute inset-0 bg-grid-fade" />
       </div>
 
       {/* Navbar */}
@@ -822,13 +1619,34 @@ export default function App() {
                 {value}
               </button>
             ))}
-            <button 
-              onClick={toggleLang}
-              className="px-3 py-1 rounded border border-slate-700 hover:border-brand-500 text-xs font-bold transition-all text-slate-300 flex items-center gap-2"
-            >
-              <Globe2 size={14} />
-              {lang === 'ar' ? 'EN' : 'العربية'}
-            </button>
+            <div className="relative">
+              <button 
+                onClick={toggleLang}
+                className="px-3 py-1 rounded border border-slate-700 hover:border-brand-500 text-xs font-bold transition-all text-slate-300 flex items-center gap-2 relative"
+              >
+                <Globe2 size={14} />
+                {lang === 'ar' ? 'EN' : 'العربية'}
+                
+                {/* Language Switch Hint */}
+                <AnimatePresence>
+                  {showLangHint && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      className={`absolute top-full mt-3 ${lang === 'ar' ? 'right-0' : 'left-0'} w-48 p-4 glass border-brand-500/40 rounded-2xl z-[60] shadow-2xl pointer-events-none`}
+                    >
+                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-t border-l border-brand-500/40" />
+                      <p className="text-[11px] leading-relaxed text-center font-bold text-white">
+                        {lang === 'ar' 
+                          ? 'You can switch to English from here anytime!' 
+                          : 'يمكنك التبديل للعربية من هنا في أي وقت!'}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            </div>
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -866,10 +1684,15 @@ export default function App() {
       </AnimatePresence>
 
       {/* Hero Section */}
-      <section id="home" className="relative min-h-screen flex items-center pt-20 pb-32 overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-20">
-          <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-500/20 blur-[120px] rounded-full" />
-          <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-cyan-500/20 blur-[120px] rounded-full" />
+      <section id="home" className="relative min-h-screen flex items-center pt-24 pb-48 overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
+          {/* Animated floating elements */}
+          <div className="absolute top-1/4 left-[10%] w-32 h-32 glass rounded-full border-brand-500/20 animate-float opacity-40 hidden md:block" />
+          <div className="absolute top-1/3 right-[15%] w-24 h-24 glass rounded-xl border-cyan-500/20 animate-float-delayed opacity-30 rotate-12 hidden md:block" />
+          <div className="absolute bottom-1/4 left-[20%] w-16 h-16 glass rounded-full border-emerald-500/20 animate-float opacity-30 hidden md:block" />
+          
+          <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-500/10 blur-[120px] rounded-full" />
+          <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-cyan-500/10 blur-[120px] rounded-full" />
         </div>
 
         <div className="container mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
@@ -889,7 +1712,7 @@ export default function App() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
                 <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-                  {lang === 'ar' ? 'متاح للمشاريع الجديدة' : 'Available for hire'}
+                  {lang === 'ar' ? 'متاح لمشاريع جديدة' : 'Available for hire'}
                 </span>
               </div>
             </div>
@@ -902,7 +1725,7 @@ export default function App() {
             <p className="text-slate-400 text-lg md:text-xl max-w-xl mb-10 leading-relaxed">
               {t.hero.description}
             </p>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
               <button 
                 onClick={() => {
                   const msg = lang === 'ar' 
@@ -910,14 +1733,14 @@ export default function App() {
                     : 'Hello Mustafa, I checked your website and I would like to start a new automation project.';
                   window.open(`https://wa.me/249124819460?text=${encodeURIComponent(msg)}`);
                 }}
-                className="px-8 py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold flex items-center gap-2 transition-all shadow-xl shadow-brand-900/20"
+                className="w-full sm:w-auto px-8 py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl shadow-brand-900/20"
               >
                 {t.hero.ctaPrimary}
                 <ArrowRight size={20} className={lang === 'ar' ? 'rotate-180' : ''} />
               </button>
               <button 
                 onClick={() => scrollTo('portfolio')}
-                className="px-8 py-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl font-bold transition-all"
+                className="w-full sm:w-auto px-8 py-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl font-bold transition-all text-center"
               >
                 {t.hero.ctaSecondary}
               </button>
@@ -948,7 +1771,7 @@ export default function App() {
       </section>
 
       {/* Impact Numbers Section */}
-      <section className="relative z-10 -mt-8 md:-mt-12 mb-20">
+      <section className="relative z-10 -mt-24 md:-mt-32 mb-20">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
@@ -962,9 +1785,10 @@ export default function App() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className="glass p-8 rounded-3xl border-slate-800 flex flex-col items-center text-center group hover:border-brand-500/50 transition-colors"
+                className="glass p-8 rounded-3xl border-slate-800 flex flex-col items-center text-center group hover:border-brand-500/50 transition-all relative overflow-hidden"
                 id={`stat-${i}`}
               >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity animate-pulse" />
                 <div className="text-4xl md:text-5xl font-black text-brand-500 mb-2 group-hover:scale-110 transition-transform font-mono">
                   {stat.value}
                 </div>
@@ -981,11 +1805,24 @@ export default function App() {
       </section>
 
       {/* Services Section */}
-      <section id="services" className="py-24 relative">
-        <div className="container mx-auto px-6">
+      <section id="services" className="py-24 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-grid opacity-20 pointer-events-none" />
+        <div className="container mx-auto px-6 relative z-10">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight text-gradient inline-block uppercase">{t.services.title}</h2>
-            <div className="h-1 w-20 bg-brand-500 mx-auto rounded-full" />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight text-gradient inline-block uppercase leading-tight">
+                {t.services.title}
+              </h2>
+              <div className="flex items-center justify-center gap-4">
+                <div className="h-px w-12 bg-gradient-to-r from-transparent to-brand-500" />
+                <div className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
+                <div className="h-px w-12 bg-gradient-to-l from-transparent to-brand-500" />
+              </div>
+            </motion.div>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -1021,53 +1858,66 @@ export default function App() {
         </div>
       </section>
 
-      {/* Portfolio Section - Direct Image Links */}
-      <section id="portfolio" className="py-24 bg-slate-900/30">
-        <div className="container mx-auto px-6">
+      {/* Portfolio Section - Tech Cards Style */}
+      <section id="portfolio" className="py-32 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-full h-full bg-mesh opacity-10 pointer-events-none" />
+        <div className="container mx-auto px-6 relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-20">
             <div>
-              <h2 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight uppercase">{t.portfolio.title}</h2>
-              <p className="text-slate-400 text-lg">{lang === 'ar' ? 'معرض يبرز الدقة والاحترافية في تنفيذ الأنظمة الذكية' : 'Showcasing precision and professionalism in intelligent systems implementation'}</p>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+              >
+                <h2 className="text-4xl md:text-6xl font-black mb-4 tracking-tight uppercase text-gradient">{t.portfolio.title}</h2>
+                <p className="text-slate-400 text-lg max-w-2xl">{lang === 'ar' ? 'حلول هندسية متكاملة تعتمد على الأتمتة المتقدمة والأنظمة الذكية' : 'Integrated engineering solutions powered by advanced automation and intelligent systems'}</p>
+              </motion.div>
             </div>
-            <div className="h-px flex-grow bg-slate-800 mx-8 hidden md:block" />
+            <div className="h-px flex-grow bg-gradient-to-r from-slate-800 to-transparent mx-8 hidden md:block" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {portfolioItems.map((item, idx) => (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: idx * 0.1 }}
-                className="group relative rounded-3xl overflow-hidden glass"
+                className="group relative h-full flex flex-col glass rounded-[2.5rem] p-8 hover:border-brand-500/50 transition-all duration-300 active:scale-[0.98]"
               >
-                <div className="aspect-[4/3] overflow-hidden">
-                  <img 
-                    src={item.url} 
-                    alt={item.title}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
+                {/* Card Icon Header */}
+                <div className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${item.color} p-[1px] mb-8 group-hover:rotate-6 transition-transform duration-500`}>
+                  <div className="w-full h-full bg-slate-950 rounded-[23px] flex items-center justify-center text-white">
+                    {item.icon}
+                  </div>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-8">
-                  <div className="flex flex-wrap gap-2 mb-4">
+
+                <div className="flex-grow">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                      {item.tag}
+                    </span>
+                  </div>
+                  <h4 className="text-2xl font-bold text-white mb-4 group-hover:text-brand-400 transition-colors">{item.title}</h4>
+                  <p className="text-slate-400 mb-8 leading-relaxed line-clamp-3">
+                    {item.desc}
+                  </p>
+                </div>
+
+                {/* Footer Tech Stack */}
+                <div className="pt-6 border-t border-slate-800">
+                  <div className="flex flex-wrap gap-2">
                     {item.tech?.map(t => (
-                      <span key={t} className="text-[10px] px-2 py-1 bg-brand-500/20 text-brand-300 border border-brand-500/30 rounded-md font-mono">
+                      <span key={t} className="text-[10px] px-2 py-1 bg-slate-800 text-slate-300 rounded-md font-mono border border-slate-700/50">
                         {t}
                       </span>
                     ))}
                   </div>
-                  <h4 className="text-white font-bold text-xl mb-4">{item.title}</h4>
-                  <a 
-                    href={item.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-brand-400 font-bold hover:text-brand-300 transition-colors"
-                  >
-                    {t.portfolio.viewImage}
-                    <ExternalLink size={16} />
-                  </a>
                 </div>
+
+                {/* Hover Glow */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0 group-hover:opacity-[0.03] transition-opacity rounded-[2.5rem] pointer-events-none`} />
               </motion.div>
             ))}
           </div>
@@ -1383,7 +2233,7 @@ export default function App() {
       <footer className="py-12 border-t border-slate-900 border-t-slate-800">
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-slate-500 text-sm font-medium">
-            © 2025 Mustafa ElSiddig. {lang === 'ar' ? 'جميع الحقوق محفوظة.' : 'All rights reserved.'}
+            © 2025 <button onClick={() => setShowAdmin(true)} className="hover:text-brand-500 transition-colors cursor-pointer focus:outline-none">Mustafa ElSiddig</button>. {lang === 'ar' ? 'جميع الحقوق محفوظة.' : 'All rights reserved.'}
           </div>
           <div className="flex items-center gap-8 text-slate-500 text-xs font-bold uppercase tracking-widest">
              <button onClick={() => scrollTo('services')} className="hover:text-white transition-colors">{t.nav.services}</button>

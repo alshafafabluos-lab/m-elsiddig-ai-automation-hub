@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "WorkshopRegistration": {
+      "title": "Workshop Registration",
+      "description": "Information provided by participants for the AI Workshop.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "description": "Full name of the registrant" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "phone": { "type": "string", "description": "WhatsApp number" },
+        "age": { "type": "number", "description": "Age of the registrant" },
+        "profession": { "type": "string", "description": "Job title or student status" },
+        "field": { "type": "string", "description": "Field of work or study" },
+        "aiInterest": { "type": "string", "description": "Reason for interest in AI workshop" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of registration" },
+        "status": { "type": "string", "enum": ["pending", "contacted", "confirmed", "rejected"], "description": "Status of the application" }
+      },
+      "required": ["fullName", "email", "phone", "age", "profession", "field", "aiInterest", "createdAt", "status"]
+    },
+    "WorkshopSettings": {
+      "title": "Workshop Settings",
+      "description": "Global settings for the workshop like total seats and activity status.",
+      "type": "object",
+      "properties": {
+        "totalSeats": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "workshopDate": { "type": "string" }
+      },
+      "required": ["totalSeats", "isActive"]
+    }
+  },
+  "firestore": {
+    "registrations": {
+      "schema": "WorkshopRegistration",
+      "description": "Collection of all workshop applications"
+    },
+    "settings/workshop": {
+      "schema": "WorkshopSettings",
+      "description": "Singleton configuration for the workshop"
+    }
+  }
+}
