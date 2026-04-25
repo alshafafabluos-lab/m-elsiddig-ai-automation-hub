@@ -37,6 +37,9 @@ import {
   Trash2,
   LogOut,
   ChevronRight,
+  Search,
+  ChevronDown,
+  AlertCircle,
   Sparkles,
   RefreshCcw,
   Languages
@@ -610,27 +613,38 @@ export default function App() {
     }
   }, []);
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [adminKey, setAdminKey] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!adminKey) return;
+    
     setIsLoggingIn(true);
     setLoginError('');
+    
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      console.log("Logged in with email");
+      // For simplicity and "fortress" feel, we use a fixed admin email 
+      // and the key provided by the user as the password.
+      const adminEmail = "admin@elsiddig.com";
+      await signInWithEmailAndPassword(auth, adminEmail, adminKey);
+      
+      setAdminKey('');
+      setShowLoginModal(false);
+      setShowAdmin(true);
+      
+      // Success toast or sound can go here
     } catch (err: any) {
-      console.error("Login Error:", err);
-      let errorMsg = lang === 'ar' ? 'فشل تسجيل الدخول: ' : 'Login failed: ';
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        errorMsg += lang === 'ar' ? 'البريد أو كلمة المرور غير صحيحة.' : 'Invalid email or password.';
-      } else {
-        errorMsg += err.message;
+      console.error("Vault Access Error:", err);
+      let errorMsg = lang === 'ar' ? 'مفتاح الوصول غير صحيح! الوصول مرفوض.' : 'Invalid Admin Key! Access Denied.';
+      
+      if (err.code === 'auth/user-not-found') {
+        errorMsg = lang === 'ar' ? 'النظام غير مهيأ بعد. يرجى التواصل مع المطور.' : 'System not initialized. Contact developer.';
       }
+      
       setLoginError(errorMsg);
+      // Brief vibration or shake effect can be added to UI
     } finally {
       setIsLoggingIn(false);
     }
@@ -1437,69 +1451,65 @@ export default function App() {
                   <ShieldCheck className="text-brand-500" size={32} />
                 </div>
 
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  {lang === 'ar' ? 'دخول المسؤول' : 'Admin Login'}
+                <h2 className="text-2xl font-bold text-white mb-2 text-center">
+                  {lang === 'ar' ? 'بوابة الوصول الحصينة' : 'Secure Access Vault'}
                 </h2>
-                <p className="text-slate-400 text-sm mb-8">
-                  {lang === 'ar' ? 'يرجى إدخال بيانات الاعتماد للوصول إلى لوحة التحكم' : 'Please enter your credentials to access the dashboard'}
-                </p>
+                <div className="flex justify-center mb-8">
+                   <div className="px-3 py-1 bg-brand-500/10 border border-brand-500/20 rounded-full flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse"></div>
+                      <span className="text-[10px] font-bold text-brand-500 uppercase tracking-widest leading-none">System Protected</span>
+                   </div>
+                </div>
 
-                <form onSubmit={handleAdminLogin} className="space-y-4">
+                <form onSubmit={handleAdminLogin} className="space-y-6">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                      {lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
-                    </label>
-                    <input 
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500 transition-all font-mono"
-                      placeholder="admin@example.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                      {lang === 'ar' ? 'كلمة المرور' : 'Password'}
-                    </label>
-                    <input 
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500 transition-all font-mono"
-                      placeholder="••••••••"
-                    />
+                    <div className="flex justify-between items-end mb-2 px-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        {lang === 'ar' ? 'مفتاح المسؤول' : 'Admin Access Key'}
+                      </label>
+                      <Lock size={14} className="text-slate-600" />
+                    </div>
+                    <div className="relative group">
+                      <input 
+                        type="password"
+                        required
+                        value={adminKey}
+                        onChange={(e) => setAdminKey(e.target.value)}
+                        className="w-full bg-slate-900/50 border-2 border-white/5 rounded-2xl px-5 py-4 text-white text-center text-2xl focus:outline-none focus:border-brand-500/50 focus:bg-slate-900 transition-all font-mono tracking-[0.5em] placeholder:tracking-normal placeholder:text-slate-700"
+                        placeholder="••••••••"
+                        autoFocus
+                      />
+                      <div className="absolute inset-0 rounded-2xl bg-brand-500/5 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity"></div>
+                    </div>
                   </div>
 
                   {loginError && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm whitespace-pre-wrap leading-relaxed">
-                      {loginError}
-                      {loginError.includes(window.location.hostname) && (
-                        <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/10 text-slate-300 text-[11px] leading-tight font-mono">
-                          {lang === 'ar' 
-                            ? "خطوات الحل للتقنيين:\n1. افتح Firebase Console\n2. انتقل إلى Authentication\n3. الإعدادات (Settings)\n4. النطاقات المصرح بها (Authorized Domains)\n5. أضف النطاق الحالي"
-                            : "Technical Fix Steps:\n1. Open Firebase Console\n2. Go to Authentication\n3. Go to Settings tab\n4. Authorized Domains section\n5. Add current domain to list"
-                          }
-                        </div>
-                      )}
-                    </div>
+                    <motion.div 
+                      initial={{ x: -10 }} 
+                      animate={{ x: 0 }}
+                      className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-sm flex items-center gap-3"
+                    >
+                      <AlertCircle size={18} className="shrink-0" />
+                      <p className="font-medium">{loginError}</p>
+                    </motion.div>
                   )}
 
                   <button 
                     type="submit"
-                    disabled={isLoggingIn}
-                    className="w-full py-4 bg-brand-500 text-black font-bold rounded-2xl shadow-xl shadow-brand-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                    disabled={isLoggingIn || !adminKey}
+                    className="w-full py-5 bg-gradient-to-br from-brand-400 to-brand-600 text-black font-black text-lg rounded-2xl shadow-2xl shadow-brand-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed group relative overflow-hidden"
                   >
-                    {isLoggingIn ? (
-                      <RefreshCcw className="animate-spin mx-auto" size={20} />
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        {lang === 'ar' ? 'تسجيل الدخول الآن' : 'Login Now'}
-                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                      </span>
-                    )}
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                    <div className="relative flex items-center justify-center gap-3">
+                      {isLoggingIn ? (
+                        <RefreshCcw className="animate-spin" size={24} />
+                      ) : (
+                        <>
+                          <ShieldCheck size={22} />
+                          {lang === 'ar' ? 'فك القفل' : 'UNLOCK SYSTEM'}
+                        </>
+                      )}
+                    </div>
                   </button>
                 </form>
 
