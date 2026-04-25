@@ -589,15 +589,6 @@ export default function App() {
   }, [isAdmin, showLoginModal]);
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchRegistrations();
-      // Refresh every minute
-      const interval = setInterval(fetchRegistrations, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [isAdmin]);
-
-  useEffect(() => {
     // Language Hint Logic
     const hasSeenHint = localStorage.getItem('hasSeenLangHint');
     if (!hasSeenHint) {
@@ -677,27 +668,32 @@ export default function App() {
     }
   };
 
-  const fetchRegistrations = async () => {
-    setIsLoadingRegs(true);
-    const path = 'registrations';
-    try {
-      const q = query(collection(db, path), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRegistrations(docs);
-      setTotalConfirmed(docs.filter((r: any) => r.status === 'confirmed').length);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.LIST, path);
-    } finally {
-      setIsLoadingRegs(false);
-    }
-  };
-
+  // Admin Logic: Fetch Registrations real-time
   useEffect(() => {
-    if (showAdmin && isAdmin) {
-      fetchRegistrations();
+    if (isAdmin) {
+      setIsLoadingRegs(true);
+      const q = query(collection(db, 'registrations'), orderBy('createdAt', 'desc'));
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }));
+        setRegistrations(docs);
+        setTotalConfirmed(docs.filter((r: any) => r.status === 'confirmed').length);
+        setIsLoadingRegs(false);
+      }, (error) => {
+        console.error("Snapshot error:", error);
+        // Only throw if it's not a permission error we expect for local admin
+        if (!isLocalAdmin) {
+          handleFirestoreError(error, OperationType.LIST, 'registrations');
+        }
+        setIsLoadingRegs(false);
+      });
+
+      return () => unsubscribe();
     }
-  }, [showAdmin, isAdmin]);
+  }, [isAdmin, isLocalAdmin]);
 
   const handleWorkshopSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -712,7 +708,6 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       setWorkshopSubmitted(true);
-      fetchRegistrations(); // Update list locally
     } catch (err: any) {
       setWorkshopError(lang === 'ar' ? 'فشل التسجيل، يرجى المحاولة لاحقاً.' : 'Registration failed, please try again.');
       try {
@@ -729,8 +724,6 @@ export default function App() {
     const path = `registrations/${id}`;
     try {
       await updateDoc(doc(db, 'registrations', id), { status });
-      setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-      if (status === 'confirmed') setTotalConfirmed(prev => prev + 1);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
@@ -746,8 +739,6 @@ export default function App() {
     const path = `registrations/${id}`;
     try {
       await deleteDoc(doc(db, 'registrations', id));
-      setRegistrations(prev => prev.filter(r => r.id !== id));
-      fetchRegistrations();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, path);
     }
@@ -1623,6 +1614,16 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex-grow overflow-auto custom-scrollbar p-6">
+                    {isLocalAdmin && !user && (
+                      <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-4 text-amber-500 text-sm">
+                        <AlertCircle size={20} className="shrink-0" />
+                        <p>
+                          {lang === 'ar' 
+                            ? 'تنبيه: أنت مسجل دخول كمسؤول محلي فقط. لرؤية البيانات الحقيقية من قاعدة البيانات، يجب تسجيل دخول المسؤول المعتمد.' 
+                            : 'Note: Local bypass active. To view live data, authenticated admin login is required.'}
+                        </p>
+                      </div>
+                    )}
                     {isLoadingRegs ? (
                       <div className="h-full flex items-center justify-center text-slate-500 font-mono animate-pulse">
                         {lang === 'ar' ? 'جاري جلب البيانات...' : 'SYSTEM_SCANNING_DATABASE...'}

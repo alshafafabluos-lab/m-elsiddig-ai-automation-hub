@@ -10,8 +10,9 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
       return isSignedIn() && (
-        (request.auth.token.email_verified == true && exists(/databases/$(database)/documents/admins/$(request.auth.uid))) || 
-        request.auth.token.email == 'alshafafabluos@gmail.com'
+        request.auth.token.email == 'alshafafabluos@gmail.com' ||
+        request.auth.token.email == 'admin@elsiddig.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       ); 
     }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
