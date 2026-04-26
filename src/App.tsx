@@ -1169,8 +1169,8 @@ export default function App() {
             <Sparkles size={14} className="text-yellow-400 group-hover:rotate-12 transition-transform" />
             <span className="relative">
               {lang === 'ar' 
-                ? `فرصة حصرية: سجل في ورشة الذكاء الاصطناعي` 
-                : `EXCLUSIVE: JOIN AI WORKSHOP`}
+                ? `سجل الآن (مجاناً): ورشة الذكاء الاصطناعي` 
+                : `JOIN NOW (FREE): AI WORKSHOP`}
             </span>
             <ArrowRight size={14} className={lang === 'ar' ? 'rotate-180' : ''} />
           </button>
@@ -1215,23 +1215,35 @@ export default function App() {
                   <div className="grid grid-cols-1 gap-4 mb-10">
                      <button 
                        onClick={() => { closeWelcomeModal(); setShowWorkshopForm(true); }}
-                       className="w-full py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-500/20 transition-all flex items-center justify-center gap-3"
+                       className="w-full py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-500/20 transition-all flex items-center justify-center gap-3 group"
                      >
                         <Calendar size={16} />
-                        {lang === 'ar' ? 'سجل في ورشة الذكاء الاصطناعي' : 'Register for AI Workshop'}
+                        <div className="flex flex-col items-start leading-none">
+                          <span>{lang === 'ar' ? 'سجل في ورشة الذكاء الاصطناعي' : 'Register for AI Workshop'}</span>
+                          <span className="text-[8px] opacity-70 mt-1">{lang === 'ar' ? 'ورشة عمل مجانية تماماً' : 'Completely Free Workshop'}</span>
+                        </div>
+                        <div className="px-2 py-0.5 bg-emerald-500 text-[8px] rounded-full text-black font-black">
+                          {lang === 'ar' ? 'مجانية' : 'FREE'}
+                        </div>
                      </button>
                      <div className="grid grid-cols-2 gap-4">
                         <button 
                           onClick={() => { closeWelcomeModal(); scrollTo('services'); }}
-                          className="py-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all"
+                          className="py-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all hover:border-brand-500/30"
                         >
-                           {lang === 'ar' ? 'استكشاف الخدمات' : 'Explore Services'}
+                           <div className="flex flex-col items-center gap-1">
+                              <span>{lang === 'ar' ? 'استكشاف الخدمات' : 'Explore Services'}</span>
+                              <span className="text-[7px] text-slate-500 group-hover:text-slate-400">{lang === 'ar' ? 'دليل الحلول والابتكار' : 'Innovation & Solutions Guide'}</span>
+                           </div>
                         </button>
                         <button 
                           onClick={() => { closeWelcomeModal(); scrollTo('vision'); }}
-                          className="py-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all"
+                          className="py-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all hover:border-brand-500/30"
                         >
-                           {lang === 'ar' ? 'طلب استشارة' : 'Get Consultation'}
+                           <div className="flex flex-col items-center gap-1">
+                              <span>{lang === 'ar' ? 'طلب استشارة' : 'Get Consultation'}</span>
+                              <span className="text-[7px] text-slate-500 group-hover:text-slate-400">{lang === 'ar' ? 'خبراء الأتمتة' : 'Automation Experts'}</span>
+                           </div>
                         </button>
                      </div>
                   </div>
