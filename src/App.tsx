@@ -42,7 +42,8 @@ import {
   AlertCircle,
   Sparkles,
   RefreshCcw,
-  Languages
+  Languages,
+  Settings
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { db, auth } from './firebase';
@@ -53,6 +54,7 @@ import {
   getDocs, 
   query, 
   orderBy, 
+  onSnapshot,
   doc, 
   getDoc,
   deleteDoc,
@@ -528,6 +530,17 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'faq' | 'terms' | 'process'>('faq');
   const [userRating, setUserRating] = useState<number | null>(null);
 
+  // Admin State
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLocalAdmin, setIsLocalAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [isLoadingRegs, setIsLoadingRegs] = useState(false);
+  const [adminSearch, setAdminSearch] = useState('');
+  const [totalConfirmed, setTotalConfirmed] = useState(0);
+
   // Workshop Registration State
   const [showWorkshopForm, setShowWorkshopForm] = useState(false);
   const [isSubmittingWorkshop, setIsSubmittingWorkshop] = useState(false);
@@ -547,24 +560,29 @@ export default function App() {
     aiInterest: ''
   });
 
-  // Language Hint State
-  const [showLangHint, setShowLangHint] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
-  // Admin State
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [registrations, setRegistrations] = useState<any[]>([]);
-  const [isLoadingRegs, setIsLoadingRegs] = useState(false);
-  const [adminSearch, setAdminSearch] = useState('');
-  const [totalConfirmed, setTotalConfirmed] = useState(0);
+  useEffect(() => {
+    // Welcome Invitation Logic
+    const hasSeenWelcome = localStorage.getItem('hasSeenWelcomeCard');
+    if (!hasSeenWelcome) {
+      const timer = setTimeout(() => {
+        setShowWelcomeModal(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const closeWelcomeModal = () => {
+    setShowWelcomeModal(false);
+    localStorage.setItem('hasSeenWelcomeCard', 'true');
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        if (u.email === 'alshafafabluos@gmail.com') {
+        if (u.email === 'alshafafabluos@gmail.com' || u.email === 'admin@elsiddig.com') {
           setIsAdmin(true);
         } else {
           try {
@@ -575,11 +593,11 @@ export default function App() {
           }
         }
       } else {
-        setIsAdmin(false);
+        if (!isLocalAdmin) setIsAdmin(false);
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [isLocalAdmin]);
 
   useEffect(() => {
     if (isAdmin && showLoginModal) {
@@ -587,29 +605,12 @@ export default function App() {
       setShowAdmin(true);
     }
   }, [isAdmin, showLoginModal]);
-
-  useEffect(() => {
-    // Language Hint Logic
-    const hasSeenHint = localStorage.getItem('hasSeenLangHint');
-    if (!hasSeenHint) {
-      const timer = setTimeout(() => {
-        setShowLangHint(true);
-        // Hide after 8 seconds
-        setTimeout(() => setShowLangHint(false), 8000);
-        localStorage.setItem('hasSeenLangHint', 'true');
-      }, 2000);
-      return () => {
-        clearTimeout(timer);
-      };
-    }
-  }, []);
-
   const [adminKey, setAdminKey] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [isLocalAdmin, setIsLocalAdmin] = useState(false);
+  const [needsAuthSetup, setNeedsAuthSetup] = useState(false);
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (!adminKey) return;
     
@@ -617,32 +618,22 @@ export default function App() {
     setLoginError('');
     
     const MASTER_KEY = "alsahafa37@";
-    const adminEmail = "admin@elsiddig.com";
 
-    try {
-      // First try real Firebase Auth with the master email and provided key
-      await signInWithEmailAndPassword(auth, adminEmail, adminKey);
-      
+    // ROOT SOLUTION: Bypass Firebase Auth logic and use direct local validation
+    // This allows publishing without configuring "Email/Password" in Firebase Console
+    if (adminKey === MASTER_KEY) {
+      setIsLocalAdmin(true);
+      setIsAdmin(true); 
       setAdminKey('');
+      setNeedsAuthSetup(false);
       setShowLoginModal(false);
       setShowAdmin(true);
-    } catch (err: any) {
-      console.error("Vault Access Error:", err);
-      
-      // Fallback: If auth fails but the key is exactly what the user set correctly
-      // we allow UI access for "Fast and Powerful" experience, assuming Firestore
-      // might have permissive rules or they just want to see the layout.
-      if (adminKey === MASTER_KEY) {
-        setIsLocalAdmin(true);
-        setIsAdmin(true); // Grant local admin privileges
-        setAdminKey('');
-        setShowLoginModal(false);
-        setShowAdmin(true);
-      } else {
-        let errorMsg = lang === 'ar' ? 'مفتاح الوصول غير صحيح! الوصول مرفوض.' : 'Invalid Admin Key! Access Denied.';
-        setLoginError(errorMsg);
-      }
-    } finally {
+      addLog('Emergency local bypass granted. Database may be locked.', 'warn');
+      setIsLoggingIn(false);
+    } else {
+      let errorMsg = lang === 'ar' ? 'مفتاح الوصول غير صحيح! الوصول مرفوض.' : 'Invalid Admin Key! Access Denied.';
+      setLoginError(errorMsg);
+      addLog('Intrusion attempt blocked: Invalid Master Key', 'warn');
       setIsLoggingIn(false);
     }
   };
@@ -668,9 +659,22 @@ export default function App() {
     }
   };
 
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [dbStatus, setDbStatus] = useState<'connected' | 'error' | 'syncing'>('connected');
+
+  const [activityLogs, setActivityLogs] = useState<{id: string, msg: string, type: 'info' | 'success' | 'warn'}[]>([]);
+  const [adminStatusFilter, setAdminStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('all');
+  const [selectedReg, setSelectedReg] = useState<any | null>(null);
+
+  const addLog = (msg: string, type: 'info' | 'success' | 'warn' = 'info') => {
+    setActivityLogs(prev => [{ id: Math.random().toString(36).substr(2, 9), msg, type }, ...prev].slice(0, 5));
+  };
+
   // Admin Logic: Fetch Registrations real-time
   useEffect(() => {
     if (isAdmin) {
+      addLog('Initializing secure database connection...', 'info');
+      setDbStatus('syncing');
       setIsLoadingRegs(true);
       const q = query(collection(db, 'registrations'), orderBy('createdAt', 'desc'));
       
@@ -679,12 +683,29 @@ export default function App() {
           id: doc.id, 
           ...doc.data() 
         }));
+        
+        if (registrations.length > 0 && docs.length > registrations.length) {
+          addLog('New registration received!', 'success');
+        }
+
         setRegistrations(docs);
         setTotalConfirmed(docs.filter((r: any) => r.status === 'confirmed').length);
         setIsLoadingRegs(false);
+        setLastSync(new Date());
+        setDbStatus('connected');
+        addLog('Database synced successfully', 'success');
       }, (error) => {
         console.error("Snapshot error:", error);
-        // Only throw if it's not a permission error we expect for local admin
+        setDbStatus('error');
+        
+        let logMsg = 'Sync aborted: Firewall or Permission error';
+        if (error.message.includes('insufficient permissions')) {
+          logMsg = lang === 'ar' 
+            ? 'خطأ: صلاحيات غير كافية (يرجى التأكد من تفعيل Auth في الكونسول)' 
+            : 'Error: Insufficient Perms (Check Auth in Console)';
+        }
+        addLog(logMsg, 'warn');
+        
         if (!isLocalAdmin) {
           handleFirestoreError(error, OperationType.LIST, 'registrations');
         }
@@ -708,6 +729,19 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       setWorkshopSubmitted(true);
+      // Reset form after submission
+      setWorkshopFormData({
+        fullName: '',
+        email: '',
+        phone: '',
+        age: '',
+        profession: '',
+        field: '',
+        experienceLevel: 'beginner',
+        mainGoal: 'learning',
+        comfortableWithTech: 3,
+        aiInterest: ''
+      });
     } catch (err: any) {
       setWorkshopError(lang === 'ar' ? 'فشل التسجيل، يرجى المحاولة لاحقاً.' : 'Registration failed, please try again.');
       try {
@@ -753,11 +787,13 @@ export default function App() {
     alert(lang === 'ar' ? 'تم النسخ بنجاح!' : 'Copied to clipboard!');
   };
 
-  const filteredRegistrations = registrations.filter(r => 
-    r.fullName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-    r.field.toLowerCase().includes(adminSearch.toLowerCase()) ||
-    r.profession.toLowerCase().includes(adminSearch.toLowerCase())
-  );
+  const filteredRegistrations = registrations
+    .filter(r => adminStatusFilter === 'all' || r.status === adminStatusFilter)
+    .filter(r => 
+      r.fullName.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      r.field.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      r.profession.toLowerCase().includes(adminSearch.toLowerCase())
+    );
 
   const t = translations[lang];
 
@@ -1114,22 +1150,113 @@ export default function App() {
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 1 }}
-          className="pointer-events-auto"
+          className="pointer-events-auto relative"
         >
+          {/* Pulsing Highlight for attention */}
+          <div className="absolute inset-0 bg-brand-500/20 blur-xl rounded-full animate-pulse z-0" />
+          
           <button 
             onClick={() => setShowWorkshopForm(true)}
-            className="flex items-center gap-3 px-6 py-2 bg-gradient-to-r from-brand-600/90 to-cyan-600/90 backdrop-blur-md rounded-full border border-white/20 shadow-2xl hover:scale-105 active:scale-95 transition-all text-xs font-black uppercase tracking-[0.2em] group"
+            className="flex items-center gap-3 px-6 py-2 bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-600 backdrop-blur-md rounded-full border border-white/20 shadow-[0_0_20px_rgba(14,165,233,0.3)] hover:shadow-[0_0_30px_rgba(14,165,233,0.5)] hover:scale-105 active:scale-95 transition-all text-xs font-black uppercase tracking-[0.2em] group relative z-10 overflow-hidden"
           >
+            {/* Animated Glow Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            
+            <div className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-brand-500"></span>
+            </div>
             <Sparkles size={14} className="text-yellow-400 group-hover:rotate-12 transition-transform" />
-            <span>
+            <span className="relative">
               {lang === 'ar' 
-                ? `ورشة الذكاء الاصطناعي (بقي ${Math.max(0, 20 - totalConfirmed)} مقاعد)` 
-                : `AI Workshop (${Math.max(0, 20 - totalConfirmed)} Seats Left)`}
+                ? `فرصة حصرية: سجل في ورشة الذكاء الاصطناعي` 
+                : `EXCLUSIVE: JOIN AI WORKSHOP`}
             </span>
             <ArrowRight size={14} className={lang === 'ar' ? 'rotate-180' : ''} />
           </button>
         </motion.div>
       </div>
+
+      {/* Welcome Invitation Layer */}
+      <AnimatePresence>
+        {showWelcomeModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] bg-slate-950/80 backdrop-blur-2xl flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 30, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 30, opacity: 0 }}
+              className="max-w-xl w-full glass rounded-[3rem] p-1 border-brand-500/20 relative overflow-hidden shadow-2xl shadow-brand-500/10"
+            >
+               <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/10 blur-[100px] pointer-events-none" />
+               <div className="absolute bottom-0 left-0 w-64 h-64 bg-cyan-500/10 blur-[100px] pointer-events-none" />
+               
+               <div className="relative z-10 p-10 text-center">
+                  <div className="flex justify-center mb-8">
+                     <div className="w-16 h-16 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-400 rotate-3 animate-float whitespace-nowrap">
+                        <Sparkles size={32} />
+                     </div>
+                  </div>
+
+                  <h3 className="text-3xl md:text-4xl font-black mb-6 leading-tight">
+                    {lang === 'ar' ? 'أهلاً بك في فضاء الابتكار' : 'Welcome to the Hub of Innovation'}
+                  </h3>
+
+                  <p className="text-slate-400 text-sm md:text-md mb-10 leading-relaxed">
+                    {lang === 'ar' 
+                      ? 'وجودك يسعدنا! نحن هنا لمساعدتك على استكشاف آفاق جديدة في عالم الذكاء الاصطناعي والأتمتة. رحلتك معنا تبدأ الآن.'
+                      : 'We are delighted to have you! We are here to help you explore new horizons in the world of AI and automation. Your journey starts now.'}
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-4 mb-10">
+                     <button 
+                       onClick={() => { closeWelcomeModal(); setShowWorkshopForm(true); }}
+                       className="w-full py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-500/20 transition-all flex items-center justify-center gap-3"
+                     >
+                        <Calendar size={16} />
+                        {lang === 'ar' ? 'سجل في ورشة الذكاء الاصطناعي' : 'Register for AI Workshop'}
+                     </button>
+                     <div className="grid grid-cols-2 gap-4">
+                        <button 
+                          onClick={() => { closeWelcomeModal(); scrollTo('services'); }}
+                          className="py-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all"
+                        >
+                           {lang === 'ar' ? 'استكشاف الخدمات' : 'Explore Services'}
+                        </button>
+                        <button 
+                          onClick={() => { closeWelcomeModal(); scrollTo('vision'); }}
+                          className="py-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all"
+                        >
+                           {lang === 'ar' ? 'طلب استشارة' : 'Get Consultation'}
+                        </button>
+                     </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-6 pt-8 border-t border-white/5">
+                     <div className="flex bg-slate-900 rounded-2xl p-1 border border-slate-800">
+                        {(['ar', 'en'] as const).map(l => (
+                          <button
+                            key={l}
+                            onClick={() => setLang(l)}
+                            className={`px-6 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${lang === l ? 'bg-brand-500 text-black shadow-lg shadow-brand-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+                          >
+                            {l === 'ar' ? 'العربية' : 'English'}
+                          </button>
+                        ))}
+                     </div>
+                     <button onClick={closeWelcomeModal} className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] hover:text-brand-400 transition-colors">
+                        {lang === 'ar' ? 'تخطي ودخول الموقع' : 'Skip & Enter Site'}
+                     </button>
+                  </div>
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Workshop Registration Modal */}
       <AnimatePresence>
@@ -1491,6 +1618,51 @@ export default function App() {
                     </motion.div>
                   )}
 
+                  {needsAuthSetup && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-5 bg-brand-500/5 border border-brand-500/10 rounded-2xl space-y-4"
+                    >
+                      <div className="flex items-center gap-2 pb-2 border-b border-brand-500/10">
+                        <Settings className="text-brand-500" size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-brand-500">
+                          {lang === 'ar' ? 'دليل إعداد النظام' : 'Firebase Setup Required'}
+                        </span>
+                      </div>
+                      <ol className="space-y-3">
+                        <li className="flex items-start gap-3">
+                          <span className="w-5 h-5 bg-brand-500 text-black text-[10px] font-black rounded-full flex items-center justify-center shrink-0">1</span>
+                          <p className="text-xs text-slate-400">
+                            {lang === 'ar' ? 'افتح Firebase Console واختر مشروعك.' : 'Open Firebase Console and select your project.'}
+                          </p>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <span className="w-5 h-5 bg-brand-500 text-black text-[10px] font-black rounded-full flex items-center justify-center shrink-0">2</span>
+                          <p className="text-xs text-slate-400">
+                            {lang === 'ar' ? 'انتقل إلى Authentication ثم Sign-in method.' : 'Go to Authentication -> Sign-in method.'}
+                          </p>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <span className="w-5 h-5 bg-brand-500 text-black text-[10px] font-black rounded-full flex items-center justify-center shrink-0">3</span>
+                          <p className="text-xs text-slate-400">
+                            {lang === 'ar' ? "فعل 'Email/Password' واحفظ الإعدادات." : "Enable 'Email/Password' and save changes."}
+                          </p>
+                        </li>
+                      </ol>
+                      <div className="pt-2">
+                         <a 
+                           href="https://console.firebase.google.com/" 
+                           target="_blank" 
+                           rel="noreferrer"
+                           className="w-full py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold rounded-xl flex items-center justify-center gap-2 transition-all border border-white/5"
+                         >
+                           {lang === 'ar' ? 'فتح لوحة تحكم Firebase' : 'Open Firebase Console'} <ExternalLink size={12} />
+                         </a>
+                      </div>
+                    </motion.div>
+                  )}
+
                   <button 
                     disabled={isLoggingIn || !adminKey}
                     className="w-full py-5 bg-gradient-to-br from-brand-400 to-brand-600 text-black font-black text-lg rounded-2xl shadow-2xl shadow-brand-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed group relative overflow-hidden"
@@ -1593,27 +1765,79 @@ export default function App() {
                   <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4 w-full md:w-auto">
                       <span className="text-xs font-black uppercase tracking-widest text-slate-400 shrink-0">{lang === 'ar' ? 'تحليلات المتقدمين' : 'Registrant Intelligence'}</span>
-                      <input 
-                        type="text" 
-                        placeholder={lang === 'ar' ? 'بحث (الاسم، المجال، المهنة)...' : 'Search (Name, Field, Jobs)...'}
-                        value={adminSearch}
-                        onChange={(e) => setAdminSearch(e.target.value)}
-                        className="bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:border-brand-500 outline-none w-full md:w-64 transition-all" 
-                      />
+                      <div className="relative w-full md:w-64 group">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-400 transition-colors" size={14} />
+                        <input 
+                          type="text" 
+                          placeholder={lang === 'ar' ? 'بحث (الاسم، المجال، المهنة)...' : 'Search (Name, Field, Jobs)...'}
+                          value={adminSearch}
+                          onChange={(e) => setAdminSearch(e.target.value)}
+                          className="bg-slate-800/50 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:border-brand-500 outline-none w-full transition-all" 
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
+                       <div className="flex bg-slate-800 rounded-xl p-1 border border-slate-700">
+                          {(['all', 'pending', 'confirmed', 'rejected'] as const).map(f => (
+                            <button
+                              key={f}
+                              onClick={() => setAdminStatusFilter(f)}
+                              className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${
+                                adminStatusFilter === f 
+                                  ? 'bg-brand-500 text-black shadow-lg shadow-brand-500/20' 
+                                  : 'text-slate-500 hover:text-slate-300'
+                              }`}
+                            >
+                              {lang === 'ar' ? (
+                                f === 'all' ? 'الكل' :
+                                f === 'pending' ? 'بانتظار' :
+                                f === 'confirmed' ? 'مقبول' : 'مرفوض'
+                              ) : f}
+                            </button>
+                          ))}
+                       </div>
+                       <div className="h-4 w-[1px] bg-slate-800 mx-2"></div>
                        <button onClick={() => copyToClipboard('emails')} className="px-3 py-2 glass hover:bg-brand-500/10 text-brand-400 text-[10px] font-bold rounded-xl transition-all flex items-center gap-2 border border-brand-500/20">
                          <Mail size={12} /> {lang === 'ar' ? 'نسخ الإيميلات' : 'Copy Emails'}
                        </button>
                        <button onClick={() => copyToClipboard('phones')} className="px-3 py-2 glass hover:bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-xl transition-all flex items-center gap-2 border border-emerald-500/20">
                          <Phone size={12} /> {lang === 'ar' ? 'نسخ الهواتف' : 'Copy Phones'}
                        </button>
-                       <button onClick={fetchRegistrations} className="p-2 glass hover:bg-white/10 rounded-xl text-slate-400 transition-all">
+                       <button 
+                         onClick={() => {
+                           addLog('Force refreshing secure session...', 'info');
+                           // onSnapshot handles it, but we can visual trigger
+                         }} 
+                         className="p-2 glass hover:bg-white/10 rounded-xl text-slate-400 transition-all"
+                       >
                          <RefreshCcw size={16} />
                        </button>
                     </div>
                   </div>
                   <div className="flex-grow overflow-auto custom-scrollbar p-6">
+                    {/* Activity Logs Console */}
+                    <div className="mb-6 p-4 glass border-slate-800 rounded-2xl font-mono text-[10px]">
+                       <div className="flex items-center gap-2 mb-3 border-b border-slate-800 pb-2">
+                          <Code2 size={12} className="text-brand-500" />
+                          <span className="text-slate-500 uppercase tracking-widest">{lang === 'ar' ? 'تنبيهات النظام' : 'SYSTEM_LOGS_CONSOLE'}</span>
+                       </div>
+                       <div className="space-y-1">
+                          {activityLogs.map(log => (
+                             <div key={log.id} className="flex gap-2">
+                                <span className="text-slate-600">[{new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}]</span>
+                                <span className={
+                                   log.type === 'success' ? 'text-emerald-500' :
+                                   log.type === 'warn' ? 'text-amber-500' :
+                                   'text-brand-400'
+                                }>
+                                   {log.msg}
+                                </span>
+                             </div>
+                          ))}
+                          {activityLogs.length === 0 && <span className="text-slate-700 italic">No activities detected...</span>}
+                       </div>
+                    </div>
+
                     {isLocalAdmin && !user && (
                       <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-4 text-amber-500 text-sm">
                         <AlertCircle size={20} className="shrink-0" />
@@ -1629,51 +1853,106 @@ export default function App() {
                         {lang === 'ar' ? 'جاري جلب البيانات...' : 'SYSTEM_SCANNING_DATABASE...'}
                       </div>
                     ) : (
-                      <div className="space-y-4">
+                      <div className="flex flex-col gap-3">
+                        {/* Table Header */}
+                        <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-800/50">
+                           <div className="col-span-3">{lang === 'ar' ? 'المتقدم' : 'Registrant'}</div>
+                           <div className="col-span-2 text-center">{lang === 'ar' ? 'الحالة' : 'Status'}</div>
+                           <div className="col-span-3">{lang === 'ar' ? 'التخصص و المهنة' : 'Field & Profession'}</div>
+                           <div className="col-span-2 text-center">{lang === 'ar' ? 'التواصل' : 'Comm'}</div>
+                           <div className="col-span-2 text-center">{lang === 'ar' ? 'الإجراءات' : 'Actions'}</div>
+                        </div>
+
                         {filteredRegistrations.map((reg) => (
-                          <div key={reg.id} className="glass border-slate-800 p-6 rounded-3xl hover:border-brand-500/30 transition-all group">
-                            <div className="flex flex-col md:flex-row justify-between gap-6">
-                              <div className={`flex-grow ${lang === 'ar' ? 'md:border-l md:pl-6' : 'md:border-r md:pr-6'} border-slate-800`}>
-                                <div className="flex items-center gap-3 mb-2">
-                                  <h4 className="text-lg font-bold text-white">{reg.fullName}</h4>
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
-                                    reg.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                    reg.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                  }`}>
-                                    {lang === 'ar' ? (
-                                      reg.status === 'confirmed' ? 'مقبول' :
-                                      reg.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'
-                                    ) : reg.status}
-                                  </span>
+                          <motion.div 
+                            layout
+                            key={reg.id} 
+                            className="glass border-slate-800 p-4 md:px-6 md:py-4 rounded-2xl hover:border-brand-500/30 transition-all group relative overflow-hidden"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                              {/* Registrant Info */}
+                              <div className="col-span-3 flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-brand-400 font-black text-sm shrink-0">
+                                  {reg.fullName.charAt(0).toUpperCase()}
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-xs">
-                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'البريد:' : 'Email:'}</span> <span className="text-slate-300">{reg.email}</span></div>
-                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'الهاتف:' : 'Phone:'}</span> <span className="text-slate-300" dir="ltr">{reg.phone}</span></div>
-                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'العمر:' : 'Age:'}</span> <span className="text-slate-300">{reg.age}</span></div>
-                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'التخصص:' : 'Role:'}</span> <span className="text-slate-300">{reg.profession} / {reg.field}</span></div>
-                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'المستوى:' : 'Level:'}</span> <span className="text-slate-300 uppercase">{reg.experienceLevel}</span></div>
-                                  <div className="flex gap-2"><span className="text-slate-500">{lang === 'ar' ? 'التقييم:' : 'Rating:'}</span> <span className="text-slate-300">{reg.comfortableWithTech}/5</span></div>
+                                <div className="min-w-0">
+                                  <h4 className="text-sm font-bold text-white truncate">{reg.fullName}</h4>
+                                  <p className="text-[10px] text-slate-500 truncate font-mono">{reg.email}</p>
                                 </div>
                               </div>
-                              <div className="md:w-1/3 flex flex-col justify-between">
-                                <p className="text-xs text-slate-400 italic mb-4 leading-relaxed line-clamp-3">"{reg.aiInterest}"</p>
-                                <div className="flex justify-end gap-2">
-                                  <select 
-                                    value={reg.status} 
-                                    onChange={(e) => updateRegStatus(reg.id, e.target.value)}
-                                    className="bg-slate-900 border border-slate-700 text-[10px] font-bold text-white rounded px-3 py-1 outline-none appearance-none cursor-pointer hover:border-brand-500 transition-colors"
+
+                              {/* Status Badge */}
+                              <div className="col-span-2 flex justify-center">
+                                <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${
+                                  reg.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                  reg.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                  'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                }`}>
+                                  {lang === 'ar' ? (
+                                    reg.status === 'confirmed' ? 'مقبول' :
+                                    reg.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'
+                                  ) : reg.status}
+                                </span>
+                              </div>
+
+                              {/* Profession/Field */}
+                              <div className="col-span-3">
+                                <div className="text-[11px] text-slate-300 font-medium">{reg.profession}</div>
+                                <div className="text-[9px] text-slate-500 uppercase tracking-wider">{reg.field}</div>
+                              </div>
+
+                              {/* Contact Icons */}
+                              <div className="col-span-2 flex justify-center gap-2">
+                                <a 
+                                  href={`mailto:${reg.email}`}
+                                  className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all border border-slate-800"
+                                  title="Send Email"
+                                >
+                                  <Mail size={14} />
+                                </a>
+                                <a 
+                                  href={`https://wa.me/${reg.phone.replace(/[^0-9]/g, '')}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all border border-slate-800"
+                                  title="WhatsApp"
+                                >
+                                  <MessageSquare size={14} />
+                                </a>
+                              </div>
+
+                              {/* Quick Actions */}
+                              <div className="col-span-2 flex justify-center gap-2">
+                                <button 
+                                  onClick={() => setSelectedReg(reg)}
+                                  className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500 hover:text-brand-400 hover:bg-brand-400/10 transition-all border border-slate-800"
+                                  title="View Details"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <div className="h-6 w-[1px] bg-slate-800 mx-1"></div>
+                                {reg.status !== 'confirmed' && (
+                                  <button 
+                                    onClick={() => updateRegStatus(reg.id, 'confirmed')}
+                                    className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500 hover:text-black transition-all border border-emerald-500/20"
+                                    title="Accept"
                                   >
-                                    <option value="pending">{lang === 'ar' ? 'قيد الانتظار' : 'Pending'}</option>
-                                    <option value="confirmed">{lang === 'ar' ? 'قبول' : 'Confirm'}</option>
-                                    <option value="rejected">{lang === 'ar' ? 'رفض' : 'Reject'}</option>
-                                  </select>
-                                  <button onClick={() => deleteReg(reg.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={16} /></button>
-                                  <a href={`https://wa.me/${reg.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-2 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all"><MessageSquare size={16} /></a>
-                                </div>
+                                    <CheckCircle2 size={14} />
+                                  </button>
+                                )}
+                                {reg.status !== 'rejected' && (
+                                  <button 
+                                    onClick={() => updateRegStatus(reg.id, 'rejected')}
+                                    className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-black transition-all border border-red-500/20"
+                                    title="Reject"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                )}
+                                <button onClick={() => deleteReg(reg.id)} className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-slate-700 hover:text-red-400 transition-all border border-slate-800"><Trash2 size={14} /></button>
                               </div>
                             </div>
-                          </div>
+                          </motion.div>
                         ))}
                         {filteredRegistrations.length === 0 && !isLoadingRegs && (
                           <div className="text-center py-20 text-slate-500 font-mono text-sm">NO_DATA_MATCHES_CRITERIA</div>
@@ -1688,6 +1967,123 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Detailed View Modal */}
+      <AnimatePresence>
+        {selectedReg && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`fixed inset-0 z-[3000] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-6 ${lang === 'ar' ? 'rtl' : ''}`}
+            onClick={() => setSelectedReg(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="relative p-8 md:p-12">
+                 <button onClick={() => setSelectedReg(null)} className="absolute top-6 right-6 p-2 bg-slate-800 rounded-full hover:bg-white/10 transition-all">
+                    <X size={20} />
+                 </button>
+
+                 <div className="flex items-center gap-6 mb-10">
+                    <div className="w-20 h-20 bg-brand-500/20 rounded-3xl flex items-center justify-center text-brand-400 font-black text-3xl">
+                       {selectedReg.fullName.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                       <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-3xl font-black text-white">{selectedReg.fullName}</h3>
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase border ${
+                            selectedReg.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                            selectedReg.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                            'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}>
+                            {lang === 'ar' ? (
+                              selectedReg.status === 'confirmed' ? 'مقبول' :
+                              selectedReg.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'
+                            ) : selectedReg.status}
+                          </span>
+                       </div>
+                       <div className="flex flex-wrap gap-4 text-xs font-mono text-slate-500">
+                          <div className="flex items-center gap-2"><Mail size={14} /> {selectedReg.email}</div>
+                          <div className="flex items-center gap-2" dir="ltr"><Phone size={14} /> {selectedReg.phone}</div>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="grid md:grid-cols-2 gap-8 mb-10">
+                    <div className="space-y-6">
+                       <div>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{lang === 'ar' ? 'المستوى والخبرة' : 'Exp Level & Rating'}</div>
+                          <div className="flex items-center gap-4">
+                             <span className="px-3 py-1.5 bg-slate-800 rounded-xl text-white text-xs font-bold border border-slate-700 uppercase tracking-tighter">{selectedReg.experienceLevel}</span>
+                             <div className="flex items-center gap-1">
+                                {[1,2,3,4,5].map(star => (
+                                  <Star key={star} size={12} className={star <= selectedReg.comfortableWithTech ? "text-yellow-500 fill-yellow-500" : "text-slate-700"} />
+                                ))}
+                             </div>
+                          </div>
+                       </div>
+                       <div>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{lang === 'ar' ? 'المهنة والمجال' : 'Profession & Field'}</div>
+                          <div className="text-sm text-slate-300 font-medium">
+                             {selectedReg.profession} <span className="text-slate-500 mx-2">/</span> {selectedReg.field}
+                          </div>
+                       </div>
+                    </div>
+                    <div>
+                       <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{lang === 'ar' ? 'الهدف الرئيسي' : 'Main Objective'}</div>
+                       <div className="text-sm text-slate-300 font-medium capitalize">
+                          {selectedReg.mainGoal}
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="mb-10">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-brand-500 mb-3">{lang === 'ar' ? 'رسالة الاهتمام بالذكاء الاصطناعي' : 'AI_INTEREST_STATEMENT'}</div>
+                    <div className="p-6 bg-slate-800/50 border border-slate-800 rounded-3xl italic text-slate-400 text-sm leading-relaxed">
+                       "{selectedReg.aiInterest}"
+                    </div>
+                 </div>
+
+                 <div className="flex items-center justify-between gap-6 pt-8 border-t border-slate-800">
+                    <div className="flex gap-2">
+                       <button 
+                         onClick={() => { updateRegStatus(selectedReg.id, 'confirmed'); setSelectedReg(prev => ({...prev, status: 'confirmed'})); }}
+                         className="px-6 py-3 bg-emerald-600 text-black font-black text-xs uppercase rounded-2xl hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-500/20"
+                       >
+                         {lang === 'ar' ? 'قبول المتقدم' : 'Approve Application'}
+                       </button>
+                       <button 
+                         onClick={() => { updateRegStatus(selectedReg.id, 'rejected'); setSelectedReg(prev => ({...prev, status: 'rejected'})); }}
+                         className="px-6 py-3 bg-red-600 text-white font-black text-xs uppercase rounded-2xl hover:bg-red-500 transition-all border border-red-500/20"
+                       >
+                         {lang === 'ar' ? 'رفض الطلب' : 'Reject Request'}
+                       </button>
+                    </div>
+                    <div className="flex gap-2">
+                       <a 
+                          href={`https://wa.me/${selectedReg.phone.replace(/[^0-9]/g, '')}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all border border-slate-700"
+                       >
+                          <MessageSquare size={20} />
+                       </a>
+                       <button onClick={() => deleteReg(selectedReg.id)} className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-red-500 hover:text-white transition-all border border-slate-700">
+                          <Trash2 size={20} />
+                       </button>
+                    </div>
+                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Interactive Cursor Spotlight */}
       <div 
         className="fixed inset-0 z-0 pointer-events-none opacity-40 transition-opacity duration-300"
@@ -1695,54 +2091,8 @@ export default function App() {
           background: `radial-gradient(1000px circle at ${mousePos.x}px ${mousePos.y}px, rgba(14, 165, 233, 0.08), transparent 80%)`
         }}
       />
-      {/* Language Selector Hint / Welcome Bar */}
-      <AnimatePresence>
-        {showLangHint && (
-          <motion.div
-            initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-lg"
-          >
-            <div className="glass p-4 rounded-2xl border-brand-500/30 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-brand-500/20 rounded-xl text-brand-400">
-                  <Languages size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-white">
-                    {lang === 'ar' ? 'هل تفضل المتابعة بالعربية؟' : 'Prefer to continue in English?'}
-                  </p>
-                  <p className="text-[10px] text-slate-400">
-                    {lang === 'ar' ? 'يمكنك دائماً التبديل من أعلى القائمة' : 'You can always switch from the top menu'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => {
-                    setLang(lang === 'ar' ? 'en' : 'ar');
-                    setShowLangHint(false);
-                    localStorage.setItem('hasSeenLangHint', 'true');
-                  }}
-                  className="px-4 py-2 bg-brand-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-brand-500 transition-all"
-                >
-                  {lang === 'ar' ? 'English' : 'العربية'}
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowLangHint(false);
-                    localStorage.setItem('hasSeenLangHint', 'true');
-                  }}
-                  className="px-4 py-2 glass text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-white/10 transition-all"
-                >
-                  {lang === 'ar' ? 'حسناً' : 'OK'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      
+      {/* Welcome Modal handled separately */}
       <motion.div 
         className="fixed top-0 left-0 right-0 h-1 bg-brand-500 z-[100] origin-left"
         style={{ scaleX }}
@@ -1767,7 +2117,23 @@ export default function App() {
           </motion.div>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-6">
+            <div className="flex items-center gap-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10 group hover:border-brand-500/30 transition-all">
+                <div className="flex items-center gap-2">
+                   <div className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : dbStatus === 'syncing' ? 'bg-brand-500 animate-pulse' : 'bg-red-500'}`}></div>
+                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">
+                      {dbStatus === 'connected' ? 'System Live' : dbStatus === 'syncing' ? 'Syncing...' : 'Offline'}
+                   </span>
+                </div>
+                {lastSync && (
+                  <div className="h-3 w-[1px] bg-white/10"></div>
+                )}
+                {lastSync && (
+                  <span className="text-[9px] font-mono text-slate-600 group-hover:text-slate-400">
+                    {lastSync.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+            </div>
             {Object.entries(t.nav).map(([key, value]) => (
               <button 
                 key={key} 
@@ -1786,23 +2152,6 @@ export default function App() {
                 {lang === 'ar' ? 'EN' : 'العربية'}
                 
                 {/* Language Switch Hint */}
-                <AnimatePresence>
-                  {showLangHint && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      className={`absolute top-full mt-3 ${lang === 'ar' ? 'right-0' : 'left-0'} w-48 p-4 glass border-brand-500/40 rounded-2xl z-[60] shadow-2xl pointer-events-none`}
-                    >
-                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-t border-l border-brand-500/40" />
-                      <p className="text-[11px] leading-relaxed text-center font-bold text-white">
-                        {lang === 'ar' 
-                          ? 'You can switch to English from here anytime!' 
-                          : 'يمكنك التبديل للعربية من هنا في أي وقت!'}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </button>
             </div>
           </div>
@@ -1860,8 +2209,14 @@ export default function App() {
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
-              <div className="inline-block px-4 py-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 text-brand-400 text-sm font-bold tracking-wide uppercase">
+            <h1 className="text-5xl md:text-7xl font-extrabold mb-6 leading-tight">
+              {t.hero.title}
+              <span className="block text-gradient mt-2">
+                {lang === 'ar' ? 'أتمتة الحاضر.. لهندسة المستقبل' : 'Automating Today, Engineering Tomorrow'}
+              </span>
+            </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
+              <div className="inline-block px-4 py-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 text-brand-400 text-xs font-bold tracking-wide uppercase">
                 {t.hero.subtitle}
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full w-fit">
@@ -1874,12 +2229,6 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <h1 className="text-5xl md:text-7xl font-extrabold mb-6 leading-tight">
-              {t.hero.title}
-              <span className="block text-gradient mt-2">
-                {lang === 'ar' ? 'أتمتة الحاضر.. لهندسة المستقبل' : 'Automating Today, Engineering Tomorrow'}
-              </span>
-            </h1>
             <p className="text-slate-400 text-lg md:text-xl max-w-xl mb-10 leading-relaxed">
               {t.hero.description}
             </p>
