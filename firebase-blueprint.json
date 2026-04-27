@@ -16,7 +16,7 @@
         "comfortableWithTech": { "type": "number", "description": "Rating of AI comfort level" },
         "aiInterest": { "type": "string", "description": "Reason for interest in AI workshop" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of registration" },
-        "status": { "type": "string", "enum": ["pending", "contacted", "confirmed", "rejected"], "description": "Status of the application" }
+        "status": { "type": "string", "enum": ["pending", "contacted", "reviewing", "confirmed", "rejected"], "description": "Status of the application" }
       },
       "required": ["fullName", "email", "phone", "age", "profession", "field", "experienceLevel", "comfortableWithTech", "aiInterest", "createdAt", "status"]
     },

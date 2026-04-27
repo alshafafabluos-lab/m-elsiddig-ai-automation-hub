@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   Calendar,
   Users,
+  TrendingUp,
   Lock,
   Eye,
   Trash2,
@@ -80,6 +81,7 @@ interface Translation {
     home: string;
     services: string;
     portfolio: string;
+    events: string;
     vision: string;
     contact: string;
   };
@@ -148,12 +150,23 @@ interface Translation {
     };
     socials: string;
   };
+  events: {
+    title: string;
+    upcoming: string;
+    past: string;
+    viewAll: string;
+    noPast: string;
+    status: {
+      upcoming: string;
+      completed: string;
+    }
+  };
 }
 
 // --- Content ---
 const translations: Record<Language, Translation> = {
   en: {
-    nav: { home: 'Home', services: 'Solutions', portfolio: 'Work', vision: 'AI Hub', contact: 'Talk' },
+    nav: { home: 'Home', services: 'Solutions', portfolio: 'Work', events: 'Events', vision: 'AI Hub', contact: 'Talk' },
     hero: {
       title: 'Mustafa ElSiddig',
       subtitle: 'Solutions Engineer & AI Systems Automation Developer',
@@ -296,10 +309,21 @@ const translations: Record<Language, Translation> = {
         send: 'Send Message'
       },
       socials: 'Social Links'
+    },
+    events: {
+      title: 'Events & Workshops',
+      upcoming: 'Live Workshops',
+      past: 'Accomplishment Record',
+      viewAll: 'View All',
+      noPast: 'No past events yet',
+      status: {
+        upcoming: 'Upcoming',
+        completed: 'Completed'
+      }
     }
   },
   ar: {
-    nav: { home: 'الرئيسية', services: 'الخدمات', portfolio: 'أعمالي', vision: 'دليلك للذكاء', contact: 'تواصل معي' },
+    nav: { home: 'الرئيسية', services: 'الخدمات', portfolio: 'أعمالي', events: 'أحداثنا', vision: 'دليلك للذكاء', contact: 'تواصل معي' },
     hero: {
       title: 'مصطفى الصديق',
       subtitle: 'مهندس حلول ومطور أتمتة وأنظمة ذكاء اصطناعي',
@@ -442,9 +466,51 @@ const translations: Record<Language, Translation> = {
         send: 'إرسال الرسالة'
       },
       socials: 'روابط التواصل'
+    },
+    events: {
+      title: 'الأحداث والورش',
+      upcoming: 'ورش العمل الحالية',
+      past: 'سجل الإنجازات',
+      viewAll: 'عرض الكل',
+      noPast: 'لا توجد أحداث سابقة حالياً',
+      status: {
+        upcoming: 'قادم',
+        completed: 'تم بنجاح'
+      }
     }
   }
 };
+
+interface EventItem {
+  id: string;
+  title: string;
+  date: string;
+  desc: string;
+  status: 'upcoming' | 'completed';
+  image?: string;
+  url?: string;
+}
+
+const pastEvents: (lang: Language) => EventItem[] = (lang) => [
+  {
+    id: 'intro-ai-2024',
+    title: lang === 'ar' ? 'ورشة مدخل إلى عالم الذكاء الاصطناعي' : 'Intro to AI World Workshop',
+    date: '2024-03-15',
+    desc: lang === 'ar' 
+      ? 'ورشة عمل مكثفة تناولت أساسيات استخدام نماذج اللغة الكبيرة في الحياة اليومية.' 
+      : 'Intensive workshop covering the basics of using LLMs in daily life.',
+    status: 'completed'
+  },
+  {
+    id: 'auto-logic-2024',
+    title: lang === 'ar' ? 'ندوة منطق الأتمتة للمؤسسات' : 'Automation Logic for Enterprises',
+    date: '2024-04-02',
+    desc: lang === 'ar' 
+      ? 'محاضرة استراتيجية حول كيفية اختيار الأدوات الصحيحة للتحول الرقمي.' 
+      : 'Strategic talk on choosing the right tools for digital transformation.',
+    status: 'completed'
+  }
+];
 
 const portfolioItems = [
   { 
@@ -758,9 +824,30 @@ export default function App() {
     const path = `registrations/${id}`;
     try {
       await updateDoc(doc(db, 'registrations', id), { status });
+      addLog(`Status updated to ${status} for ${registrations.find(r => r.id === id)?.fullName}`, 'success');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
+  };
+
+  const getWhatsAppMessage = (reg: any, type: 'accept' | 'reject') => {
+    const website = 'https://m-elsiddig-ai-automation-hub.vercel.app/';
+    const facebook = 'https://www.facebook.com/profile.php?id=100072085056656';
+    
+    if (type === 'accept') {
+      return lang === 'ar'
+        ? `أهلاً بك ${reg.fullName}! ✨\n\nنبارك لك قبولك في ورشة الذكاء الاصطناعي والأتمتة. أنت الآن جزء من رحلة استثنائية لاستكشاف هندسة المستقبل.\n\nسنوافيك بتفاصيل الموعد والمكان النهائيين قريباً.\n\nيسعدنا جداً وجودك معنا في رحاب الابتكار! 🚀`
+        : `Hello ${reg.fullName}! ✨\n\nCongratulations on your acceptance to the AI & Automation Workshop. You are now part of an exceptional journey exploring the engineering of the future.\n\nWe will provide you with the final time and location details soon.\n\nWe are excited to have you with us in the Realm of Innovation! 🚀`;
+    } else {
+      return lang === 'ar'
+        ? `أهلاً بك ${reg.fullName}.\n\nنشكرك جزيلاً على اهتمامك بالتقديم لورشة العمل. نعتذر عن عدم إمكانية قبولك هذه المرة نظراً لمحدودية المقاعد (20 مقعداً فقط) والعدد الكبير من المتقدمين.\n\nنكّن لك كل التقدير، ونأمل أن تتابعنا في الورش والأحداث القادمة عبر موقعنا:\n${website}\n\nأو عبر حسابنا على فيسبوك:\n${facebook}\n\nنتمنى لك كل التوفيق في رحلتك التقنية! 🙏`
+        : `Hello ${reg.fullName}.\n\nThank you very much for your interest in our workshop. We apologize for not being able to accept your application this time due to limited seats (20 only) and the high volume of applicants.\n\nWe appreciate your interest and hope you follow our upcoming workshops and events via our website:\n${website}\n\nOr our Facebook page:\n${facebook}\n\nWe wish you all the best in your technical journey! 🙏`;
+    }
+  };
+
+  const sendWhatsApp = (reg: any, type: 'accept' | 'reject') => {
+    const message = getWhatsAppMessage(reg, type);
+    window.open(`https://wa.me/${reg.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`);
   };
 
   const closeWorkshopModal = () => {
@@ -788,7 +875,11 @@ export default function App() {
   };
 
   const filteredRegistrations = registrations
-    .filter(r => adminStatusFilter === 'all' || r.status === adminStatusFilter)
+    .filter(r => {
+      if (adminStatusFilter === 'all') return true;
+      if (adminStatusFilter === 'reviewing') return r.status === 'pending' || r.status === 'reviewing';
+      return r.status === adminStatusFilter;
+    })
     .filter(r => 
       r.fullName.toLowerCase().includes(adminSearch.toLowerCase()) ||
       r.field.toLowerCase().includes(adminSearch.toLowerCase()) ||
@@ -1206,11 +1297,17 @@ export default function App() {
                     {lang === 'ar' ? 'أهلاً بك في فضاء الابتكار' : 'Welcome to the Hub of Innovation'}
                   </h3>
 
-                  <p className="text-slate-400 text-sm md:text-md mb-10 leading-relaxed">
+                  <p className="text-slate-300 text-base md:text-lg mb-4 leading-relaxed font-light">
                     {lang === 'ar' 
-                      ? 'وجودك يسعدنا! نحن هنا لمساعدتك على استكشاف آفاق جديدة في عالم الذكاء الاصطناعي والأتمتة. رحلتك معنا تبدأ الآن.'
-                      : 'We are delighted to have you! We are here to help you explore new horizons in the world of AI and automation. Your journey starts now.'}
+                      ? 'زيارتك لنا اليوم تعني الكثير، فأنت شريك في رؤيتنا للمستقبل. نحن هنا لنأخذ بيدك في رحلة استثنائية لاستكشاف قوة الذكاء الاصطناعي وكيف يمكنه تحويل حياتك وعملك.'
+                      : 'Your visit today means the world to us; you are a partner in our vision for the future. We are here to guide you through an extraordinary journey to explore the power of AI.'}
                   </p>
+
+                  <div className="mb-10 p-4 bg-brand-500/5 border border-brand-500/10 rounded-2xl text-xs text-brand-300 leading-relaxed italic">
+                     {lang === 'ar' 
+                      ? 'ملاحظة: هذا الموقع ليس مجرد صفحة للهبوط، بل هو مركز حيوي لتطوير أدوات الأتمتة. كرت الدعوة أدناه يتيح لك حجز مقعدك في ورشتنا العملية المكثفة للانطلاق في هذا العالم.'
+                      : 'Note: This site is not just a landing page, but a vital hub for developing automation tools. The invitation card below allows you to book your seat in our intensive practical workshop to launch into this world.'}
+                  </div>
 
                   <div className="grid grid-cols-1 gap-4 mb-10">
                      <button 
@@ -1760,8 +1857,8 @@ export default function App() {
                     <div className="text-4xl font-black">{registrations.length}</div>
                   </div>
                   <div className="glass p-6 rounded-[2rem]">
-                    <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">{lang === 'ar' ? 'بانتظار المراجعة' : 'Pending'}</div>
-                    <div className="text-4xl font-black text-amber-500">{registrations.filter(r => r.status === 'pending').length}</div>
+                    <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">{lang === 'ar' ? 'طلبات قيد المراجعة' : 'Requests Review'}</div>
+                    <div className="text-4xl font-black text-blue-500">{registrations.filter(r => r.status === 'pending' || r.status === 'reviewing').length}</div>
                   </div>
                   <div className="glass p-6 rounded-[2rem]">
                     <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">{lang === 'ar' ? 'تم القبول' : 'Confirmed'}</div>
@@ -1789,8 +1886,8 @@ export default function App() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                       <div className="flex bg-slate-800 rounded-xl p-1 border border-slate-700">
-                          {(['all', 'pending', 'confirmed', 'rejected'] as const).map(f => (
+                     <div className="flex bg-slate-800 rounded-xl p-1 border border-slate-700">
+                          {(['all', 'reviewing', 'confirmed', 'rejected'] as const).map(f => (
                             <button
                               key={f}
                               onClick={() => setAdminStatusFilter(f)}
@@ -1802,7 +1899,7 @@ export default function App() {
                             >
                               {lang === 'ar' ? (
                                 f === 'all' ? 'الكل' :
-                                f === 'pending' ? 'بانتظار' :
+                                f === 'reviewing' ? 'مراجعة' :
                                 f === 'confirmed' ? 'مقبول' : 'مرفوض'
                               ) : f}
                             </button>
@@ -1898,11 +1995,13 @@ export default function App() {
                                 <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${
                                   reg.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                                   reg.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                  reg.status === 'reviewing' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
                                   'bg-amber-500/10 text-amber-400 border-amber-500/20'
                                 }`}>
                                   {lang === 'ar' ? (
                                     reg.status === 'confirmed' ? 'مقبول' :
-                                    reg.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'
+                                    reg.status === 'rejected' ? 'مرفوض' :
+                                    reg.status === 'reviewing' ? 'مراجعة' : 'قيد الانتظار'
                                   ) : reg.status}
                                 </span>
                               </div>
@@ -1950,6 +2049,15 @@ export default function App() {
                                     title="Accept"
                                   >
                                     <CheckCircle2 size={14} />
+                                  </button>
+                                )}
+                                {reg.status !== 'reviewing' && (
+                                  <button 
+                                    onClick={() => updateRegStatus(reg.id, 'reviewing')}
+                                    className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500 hover:bg-blue-500 hover:text-black transition-all border border-blue-500/20"
+                                    title="Reviewing"
+                                  >
+                                    <RefreshCcw size={14} />
                                   </button>
                                 )}
                                 {reg.status !== 'rejected' && (
@@ -2064,26 +2172,47 @@ export default function App() {
                  <div className="flex items-center justify-between gap-6 pt-8 border-t border-slate-800">
                     <div className="flex gap-2">
                        <button 
-                         onClick={() => { updateRegStatus(selectedReg.id, 'confirmed'); setSelectedReg(prev => ({...prev, status: 'confirmed'})); }}
+                         onClick={() => { updateRegStatus(selectedReg.id, 'confirmed'); setSelectedReg(prev => prev ? ({...prev, status: 'confirmed'}) : null); }}
                          className="px-6 py-3 bg-emerald-600 text-black font-black text-xs uppercase rounded-2xl hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-500/20"
                        >
-                         {lang === 'ar' ? 'قبول المتقدم' : 'Approve Application'}
+                         {lang === 'ar' ? 'قبول' : 'Approve'}
                        </button>
                        <button 
-                         onClick={() => { updateRegStatus(selectedReg.id, 'rejected'); setSelectedReg(prev => ({...prev, status: 'rejected'})); }}
+                         onClick={() => { updateRegStatus(selectedReg.id, 'reviewing'); setSelectedReg(prev => prev ? ({...prev, status: 'reviewing'}) : null); }}
+                         className="px-6 py-3 bg-blue-600 text-white font-black text-xs uppercase rounded-2xl hover:bg-blue-500 transition-all border border-blue-500/20 shadow-xl shadow-blue-500/20"
+                       >
+                         {lang === 'ar' ? 'مراجعة' : 'Review'}
+                       </button>
+                       <button 
+                         onClick={() => { updateRegStatus(selectedReg.id, 'rejected'); setSelectedReg(prev => prev ? ({...prev, status: 'rejected'}) : null); }}
                          className="px-6 py-3 bg-red-600 text-white font-black text-xs uppercase rounded-2xl hover:bg-red-500 transition-all border border-red-500/20"
                        >
-                         {lang === 'ar' ? 'رفض الطلب' : 'Reject Request'}
+                         {lang === 'ar' ? 'رفض' : 'Reject'}
                        </button>
                     </div>
                     <div className="flex gap-2">
+                       <button 
+                          onClick={() => sendWhatsApp(selectedReg, 'accept')}
+                          className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all border border-emerald-500/20"
+                          title={lang === 'ar' ? 'إرسال رسالة قبول عبر واتساب' : 'Send Acceptance via WhatsApp'}
+                       >
+                          <MessageSquare size={20} />
+                       </button>
+                       <button 
+                          onClick={() => sendWhatsApp(selectedReg, 'reject')}
+                          className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500 hover:text-black transition-all border border-red-500/20"
+                          title={lang === 'ar' ? 'إرسال رسالة اعتذار عبر واتساب' : 'Send Rejection via WhatsApp'}
+                       >
+                          <X size={20} />
+                       </button>
+                       <div className="h-10 w-[1px] bg-slate-800 mx-1"></div>
                        <a 
                           href={`https://wa.me/${selectedReg.phone.replace(/[^0-9]/g, '')}`} 
                           target="_blank" 
                           rel="noopener noreferrer" 
-                          className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all border border-slate-700"
+                          className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-white hover:text-black transition-all border border-slate-700"
                        >
-                          <MessageSquare size={20} />
+                          <Phone size={20} />
                        </a>
                        <button onClick={() => deleteReg(selectedReg.id)} className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-red-500 hover:text-white transition-all border border-slate-700">
                           <Trash2 size={20} />
@@ -2439,6 +2568,113 @@ export default function App() {
                 <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0 group-hover:opacity-[0.03] transition-opacity rounded-[2.5rem] pointer-events-none`} />
               </motion.div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Events & Archive Section */}
+      <section id="events" className="py-32 relative overflow-hidden bg-slate-900/30">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              className="text-4xl md:text-6xl font-black mb-4 uppercase text-gradient"
+            >
+              {t.events.title}
+            </motion.h2>
+            <p className="text-slate-500 uppercase tracking-widest text-xs font-bold">
+              {lang === 'ar' ? 'سجل حافل بالابتكار والتعاون' : 'A track record of innovation and collaboration'}
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Live Event (Featured) */}
+            <motion.div 
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              className="lg:col-span-2 glass rounded-[3rem] p-8 md:p-12 border-brand-500/30 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 right-0 p-8">
+                 <div className="px-4 py-1 bg-brand-500 text-black text-[10px] font-black uppercase rounded-full animate-pulse">
+                    {t.events.status.upcoming}
+                 </div>
+              </div>
+
+              <div className="relative z-10">
+                <div className="flex items-center gap-4 mb-8">
+                   <div className="w-16 h-16 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-400">
+                      <Calendar size={32} />
+                   </div>
+                   <div>
+                      <h3 className="text-2xl font-black text-white mb-1">
+                        {lang === 'ar' ? 'ورشة الذكاء الاصطناعي والأتمتة' : 'AI & Automation Workshop'}
+                      </h3>
+                      <p className="text-xs text-brand-400 font-mono">MAY 2026 • KHARTOUM/REMOTE</p>
+                   </div>
+                </div>
+
+                <p className="text-slate-300 text-lg mb-10 max-w-xl leading-relaxed">
+                   {lang === 'ar' 
+                    ? 'انضم إلينا لنغير معاً مفهوم الذكاء الاصطناعي ونكسر حاجز الخوف من التطور. ورشة عمل مخصصة للطلاب، الموظفين، ورجال الأعمال، لنعلمك كيف تحول هذه التقنيات إلى شريك نجاح يضاعف إنتاجيتك.'
+                    : 'Join us to reshape your understanding of AI and break the barrier of fear towards technology. A workshop designed for students, employees, and entrepreneurs to learn how to turn AI into a powerful partner.'}
+                </p>
+
+                <div className="flex flex-wrap gap-4 mb-10">
+                   {[
+                     { l: lang === 'ar' ? 'تغيير العقلية' : 'Mindset Shift', i: <Zap size={14} /> },
+                     { l: lang === 'ar' ? 'للطلاب والمستقلين' : 'Students & Freelancers', i: <Users size={14} /> },
+                     { l: lang === 'ar' ? 'مضاعفة الإنتاجية' : 'Productivity Boost', i: <TrendingUp size={14} /> }
+                   ].map((tag, i) => (
+                     <div key={i} className="flex items-center gap-2 px-4 py-2 bg-slate-800 rounded-xl text-[10px] font-bold text-slate-400 border border-slate-700">
+                        {tag.i} {tag.l}
+                     </div>
+                   ))}
+                </div>
+
+                <button 
+                  onClick={() => setShowWorkshopForm(true)}
+                  className="px-10 py-5 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-2xl shadow-brand-500/20 active:scale-95"
+                >
+                  {lang === 'ar' ? 'احجز مقعدك الآن (محدود)' : 'BOOK YOUR SEAT (LIMITED)'}
+                </button>
+              </div>
+
+              <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-brand-500/5 blur-[100px] rounded-full group-hover:bg-brand-500/10 transition-all duration-700"></div>
+            </motion.div>
+
+            {/* Past Events List */}
+            <div className="flex flex-col gap-6">
+              <h4 className="text-xs font-black uppercase tracking-[0.3em] text-slate-500 mb-2 px-4">
+                {t.events.past}
+              </h4>
+              {pastEvents(lang).map((event, i) => (
+                <motion.div 
+                  key={event.id}
+                  initial={{ opacity: 0, x: 30 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="glass p-6 rounded-3xl border-slate-800 hover:border-slate-700 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                     <span className="text-[9px] font-mono text-slate-500 uppercase">{event.date}</span>
+                     <div className="px-2 py-0.5 bg-slate-800 rounded text-[8px] font-bold text-slate-400 uppercase border border-slate-700">
+                        {t.events.status.completed}
+                     </div>
+                  </div>
+                  <h5 className="font-bold text-white mb-2 group-hover:text-brand-400 transition-colors">{event.title}</h5>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {event.desc}
+                  </p>
+                </motion.div>
+              ))}
+              <button 
+                onClick={() => scrollTo('contact')}
+                className="mt-4 py-4 border border-dashed border-slate-800 rounded-3xl text-slate-600 text-[10px] font-black uppercase tracking-widest hover:border-brand-500/30 hover:text-brand-400 transition-all"
+              >
+                {lang === 'ar' ? 'اقترح حدثاً قادماً' : 'Suggest an event'}
+              </button>
+            </div>
           </div>
         </div>
       </section>
