@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'motion/react';
+import { getChatResponse } from './services/geminiService';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   Cpu, 
   Database, 
@@ -44,7 +46,9 @@ import {
   Sparkles,
   RefreshCcw,
   Languages,
-  Settings
+  Settings,
+  QrCode,
+  Share2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { db, auth } from './firebase';
@@ -132,6 +136,7 @@ interface Translation {
     label: string;
     welcome: string;
     categories: {
+      chat: string;
       faq: string;
       terms: string;
       process: string;
@@ -278,8 +283,9 @@ const translations: Record<Language, Translation> = {
     },
     assistant: {
       label: 'Your Project Partner',
-      welcome: 'Hello! I can help you find out which tasks you can automate today. What part of your work takes most of your time?',
+      welcome: 'Hello! I am Siddig, Engineer Mustafa\'s AI assistant. I can help you with automation, bots, and technical solutions. What part of your work takes most of your time?',
       categories: {
+        chat: 'Chat with Siddig',
         faq: 'Questions',
         terms: 'My Commitments',
         process: 'How We Work'
@@ -435,8 +441,9 @@ const translations: Record<Language, Translation> = {
     },
     assistant: {
       label: 'شريكك في التطوير',
-      welcome: 'أهلاً بك! يمكنني مساعدتك في اكتشاف المهام التي يمكنك أتمتتها اليوم. ما هو أكثر شيء يستهلك وقتك في العمل؟',
+      welcome: 'حبابك ألف! أنا "صديق" المساعد الذكي للمهندس مصطفى الصديق. بقدر أساعدك في فهم الأتمتة والبوتات وكيف تطور شغلك. شنو أكتر حاجة بتضيع وقتك في يومك؟',
       categories: {
+        chat: 'دردش مع صديق',
         faq: 'أسئلة شائعة',
         terms: 'التزاماتي تجاهك',
         process: 'كيف نبدأ العمل؟'
@@ -593,8 +600,19 @@ export default function App() {
   const [scrolled, setScrolled] = useState(false);
 
   const [isBotOpen, setIsBotOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'faq' | 'terms' | 'process'>('faq');
+  const [activeTab, setActiveTab] = useState<'chat' | 'faq' | 'terms' | 'process'>('chat');
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'model', content: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isAiTyping, setIsAiTyping] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages, isAiTyping, activeTab]);
 
   // Admin State
   const [user, setUser] = useState<User | null>(null);
@@ -781,6 +799,30 @@ export default function App() {
       return () => unsubscribe();
     }
   }, [isAdmin, isLocalAdmin]);
+
+  const handleSendMessage = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isAiTyping) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setIsAiTyping(true);
+
+    try {
+      const history = chatMessages.map(m => ({
+        role: m.role,
+        parts: [{ text: m.content }]
+      }));
+      
+      const aiResponse = await getChatResponse(userMessage, history, lang);
+      setChatMessages(prev => [...prev, { role: 'model', content: aiResponse }]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+    } finally {
+      setIsAiTyping(false);
+    }
+  };
 
   const handleWorkshopSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -2984,6 +3026,109 @@ export default function App() {
         </div>
       </section>
 
+      {/* QR Code Section */}
+      <section className="py-24 bg-slate-900/50 relative overflow-hidden">
+        <div className="container mx-auto px-6">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="glass p-12 rounded-[3rem] border-slate-800 flex flex-col md:flex-row items-center justify-between gap-12 max-w-5xl mx-auto shadow-2xl relative"
+          >
+            <div className="flex-1 text-center md:text-right" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+               <div className="flex items-center gap-3 mb-6 justify-center md:justify-start">
+                  <div className="p-2 bg-brand-500/20 rounded-lg text-brand-400">
+                    <QrCode size={24} />
+                  </div>
+                  <h2 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tight">
+                    {lang === 'ar' ? 'شارك الموقع بسهولة' : 'Share the Hub'}
+                  </h2>
+               </div>
+               <p className="text-slate-400 text-lg mb-8 leading-relaxed max-w-xl">
+                 {lang === 'ar' 
+                   ? 'يمكنك طباعة هذا الرمز على بطاقة عملك الخاصة أو مشاركته مع أي شخص يرغب في التعرف أكثر على خدمات المهندس مصطفى في مجالات الأتمتة والذكاء الاصطناعي.'
+                   : 'You can print this code on your business card or share it with anyone who wants to learn more about Mustafa\'s automation and AI services.'}
+               </p>
+               
+               <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+                 <button 
+                  onClick={() => {
+                    const svg = document.querySelector('#site-qr-code') as SVGElement;
+                    const svgData = new XMLSerializer().serializeToString(svg);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const img = new Image();
+                    img.onload = () => {
+                      canvas.width = img.width + 40;
+                      canvas.height = img.height + 40;
+                      if (ctx) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 20, 20);
+                        const pngFile = canvas.toDataURL('image/png');
+                        const downloadLink = document.createElement('a');
+                        downloadLink.download = 'Mustafa-Siddig-AI-Hub-QR.png';
+                        downloadLink.href = pngFile;
+                        downloadLink.click();
+                      }
+                    };
+                    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+                  }}
+                  className="flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-brand-500 hover:text-black border border-white/10 rounded-2xl transition-all font-bold uppercase tracking-widest text-[10px]"
+                 >
+                   <Download size={14} />
+                   {lang === 'ar' ? 'تحميل للطباعة' : 'Download for Printing'}
+                 </button>
+
+                 <button 
+                  onClick={() => {
+                    const url = "https://m-elsiddig-ai-automation-hub.vercel.app/";
+                    if (navigator.share) {
+                      navigator.share({
+                        title: lang === 'ar' ? 'مركز المهندس مصطفى للأتمتة' : 'Mustafa Siddig AI Hub',
+                        text: lang === 'ar' ? 'اكتشف حلول الأتمتة والذكاء الاصطناعي' : 'Discover AI & Automation solutions',
+                        url: url,
+                      }).catch(console.error);
+                    } else {
+                      navigator.clipboard.writeText(url);
+                      alert(lang === 'ar' ? 'تم نسخ الرابط!' : 'Link copied!');
+                    }
+                  }}
+                  className="flex items-center gap-3 px-6 py-3 bg-brand-500/10 hover:bg-brand-500 hover:text-black border border-brand-500/20 rounded-2xl transition-all font-bold uppercase tracking-widest text-[10px]"
+                 >
+                   <Share2 size={14} />
+                   {lang === 'ar' ? 'مشاركة الرابط' : 'Share Link'}
+                 </button>
+               </div>
+            </div>
+
+            <div className="relative group">
+              <div className="absolute -inset-4 bg-gradient-to-tr from-brand-500/20 to-cyan-500/20 rounded-[2.5rem] blur-xl opacity-50 group-hover:opacity-100 transition-opacity" />
+              <div className="relative bg-white p-6 rounded-[2rem] shadow-2xl transition-transform group-hover:scale-105 duration-500">
+                <QRCodeSVG 
+                  id="site-qr-code"
+                  value="https://m-elsiddig-ai-automation-hub.vercel.app/" 
+                  size={200}
+                  level="H"
+                  includeMargin={false}
+                  imageSettings={{
+                    src: "https://www.google.com/s2/favicons?domain=vercel.app&sz=128",
+                    x: undefined,
+                    y: undefined,
+                    height: 40,
+                    width: 40,
+                    excavate: true,
+                  }}
+                />
+              </div>
+              <div className="absolute -bottom-4 -right-4 bg-emerald-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl">
+                 Verified Hub
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="py-12 border-t border-slate-900 border-t-slate-800">
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
@@ -3025,11 +3170,11 @@ export default function App() {
 
                    {/* Tabs */}
                    <div className={`flex gap-2 mb-6 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-                      {(['faq', 'terms', 'process'] as const).map((tab) => (
+                      {(['chat', 'faq', 'terms', 'process'] as const).map((tab) => (
                         <button
                           key={tab}
                           onClick={() => setActiveTab(tab)}
-                          className={`flex-1 py-2 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all ${activeTab === tab ? 'bg-brand-500 text-black' : 'bg-white/5 text-slate-500'}`}
+                          className={`flex-1 py-2 rounded-xl text-[9px] uppercase font-bold tracking-widest transition-all ${activeTab === tab ? 'bg-brand-500 text-black' : 'bg-white/5 text-slate-500'}`}
                         >
                           {t.assistant.categories[tab]}
                         </button>
@@ -3037,7 +3182,90 @@ export default function App() {
                    </div>
 
                    {/* Content */}
-                   <div className="space-y-4">
+                   <div className="flex-1 overflow-y-auto space-y-4 mb-4 min-h-0 shadow-inner">
+                      {activeTab === 'chat' && (
+                        <div className="flex flex-col h-full">
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                              {chatMessages.length} {lang === 'ar' ? 'رسائل' : 'Messages'}
+                            </span>
+                            {chatMessages.length > 0 && (
+                              <button 
+                                onClick={() => setChatMessages([])}
+                                className="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 font-bold uppercase tracking-widest"
+                              >
+                                <Trash2 size={10} /> {lang === 'ar' ? 'مسح' : 'Clear'}
+                              </button>
+                            )}
+                          </div>
+
+                          <div 
+                            ref={chatContainerRef}
+                            className="flex-1 space-y-4 mb-4 overflow-y-auto pr-2 custom-scrollbar"
+                          >
+                            {chatMessages.length === 0 && (
+                              <div className="space-y-4">
+                                <div className={`text-slate-500 text-xs text-center px-4 py-8 bg-white/5 rounded-2xl border border-white/5 italic`}>
+                                  {lang === 'ar' ? 'ابدأ الدردشة مع "صديق" لمعرفة المزيد عن خدمات المهندس مصطفى' : 'Start chatting with Siddig to learn more about Mustafa\'s services'}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    lang === 'ar' ? 'من هو مصطفى؟' : 'Who is Mustafa?',
+                                    lang === 'ar' ? 'كيف أبدأ العمل؟' : 'How to start?',
+                                    lang === 'ar' ? 'خدمات الأتمتة' : 'Automation services',
+                                    lang === 'ar' ? 'بوتات الذكاء' : 'AI Chatbots'
+                                  ].map((q, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() => { setChatInput(q); }}
+                                      className="p-2 text-[10px] bg-white/5 hover:bg-brand-500/10 border border-white/10 rounded-lg text-slate-400 hover:text-brand-400 transition-all text-center"
+                                    >
+                                      {q}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {chatMessages.map((msg, i) => (
+                              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed ${
+                                  msg.role === 'user' 
+                                    ? 'bg-brand-500 text-black rounded-tr-none' 
+                                    : 'bg-white/10 text-white rounded-tl-none font-medium'
+                                } shadow-lg`}>
+                                  {msg.content}
+                                </div>
+                              </div>
+                            ))}
+                            {isAiTyping && (
+                              <div className="flex justify-start">
+                                <div className="bg-white/10 p-3 rounded-2xl rounded-tl-none flex gap-1">
+                                  <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
+                                  <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
+                                  <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <form onSubmit={handleSendMessage} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={chatInput}
+                              onChange={(e) => setChatInput(e.target.value)}
+                              placeholder={lang === 'ar' ? 'اكتب رسالتك هنا...' : 'Type your message...'}
+                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-brand-500 transition-all"
+                            />
+                            <button
+                              type="submit"
+                              disabled={isAiTyping || !chatInput.trim()}
+                              className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              <ArrowRight size={18} className={lang === 'ar' ? 'rotate-180' : ''} />
+                            </button>
+                          </form>
+                        </div>
+                      )}
                       {activeTab === 'faq' && t.assistant.faqs.map((item, i) => (
                         <div key={i} className="bg-white/5 p-4 rounded-xl">
                            <div className={`font-bold text-brand-400 text-xs mb-2 ${lang === 'ar' ? 'text-right' : ''}`}>{item.q}</div>
